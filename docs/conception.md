@@ -32,6 +32,7 @@ Au départ, le niveau 1 de chaque dimension est ouvert. Un niveau suivant se dé
 | **G. Rythme** *(ajouté le 2026-09-23)* | Lecture : compter une cellule (« 1 et (2) et 3 4 »), valeurs, compléter une mesure, chiffrage | Dictée : la cellule est jouée deux fois sur le clic, on choisit l'écriture (choix en images) | Frappe : métronome, décompte d'une mesure, on frappe la cellule deux fois ; critère = écart moyen aux attaques (≤ 80 ms pour monter, médiane ≤ 70 ms pour débloquer) | Patterns à deux mains (deux zones sur l'écran) : bossa nova, swing, stride, 3 contre 2, valse, syncope, à 72 et 96 |
 | **H. Lecture** *(ajouté le 2026-09-24)* | Clé de sol, notes naturelles de do4 à sol5 ; on répond en **touchant la touche** sur le clavier (classe de hauteur, l'octave est expliquée) | Clé de fa, mi2 à do4 | Armures jusqu'à 3 altérations (la note lue doit tenir compte de l'armure) et altérations accidentelles | Lignes supplémentaires éloignées ; intervalles lus sur la portée (4 choix) |
 | **I. Chant** *(ajouté le 2026-09-24)* | Reproduire la note jouée (référence à l'octave 3, octave libre à l'évaluation) | Chanter un intervalle au-dessus de la note jouée | Chanter la fondamentale, la tierce ou la quinte d'un accord joué | Reproduire une mélodie de 3 notes (3 fenêtres d'écoute) |
+| **J. Déchiffrage** *(ajouté le 2026-09-25)* | Pièce de 4 mesures générée, do majeur, noires et blanches, jouée au piano et corrigée au micro | + croches, sol/fa/ré majeur | 3/4, noire pointée, changement de position | — (voir [2026-09-25-dechiffrage-design.md](2026-09-25-dechiffrage-design.md)) |
 
 Prévu plus tard, hors V1 : **D niv. 5** dominantes secondaires (V/V, V/II…) et substitution tritonique,
 quand l'élève aborde les fiches 4 et 6 de la roadmap.
@@ -162,8 +163,11 @@ chaque réponse est renvoyée à `progression`, qui met à jour l'état et le co
 
 ### Publication
 
-- **Téléphone** : `dist/harmonie.html` publié comme page claude.ai privée, avec la capacité de base de données
-  de l'artefact pour que la progression suive l'élève et soit lisible par le prof (via `ArtifactData`).
+- **Téléphone** *(depuis le 2026-09-25)* : GitHub Pages, https://klem88.github.io/harmonie-au-clavier/ (HTTPS :
+  le micro fonctionne, ce que la page claude.ai interdisait). Un `git push` sur `main` teste, construit et publie
+  (`.github/workflows/pages.yml`). Progression en `localStorage` ; « Copier ma progression » sert de sauvegarde
+  et de bilan pour le prof, « Importer une sauvegarde » la restaure.
+- Ancienne page claude.ai (base de l'artefact) : figée, ne sert plus qu'à récupérer l'état d'avant la migration.
 - **Ordinateur** : ouvrir `dist/harmonie.html` ou `index.html` directement ; progression en `localStorage`.
 - Format d'état versionné (`version: 1`) pour permettre les migrations.
 
