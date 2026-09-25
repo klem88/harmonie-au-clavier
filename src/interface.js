@@ -691,7 +691,19 @@ function terminerPiece() {
   const trames = ecoute.arreter().map((x) => ({ ...x, tMs: x.tMs - dech.origine }));
   arreterDechiffrage();
   dech.phase = 'correction';
-  const r = aligner(notesAttendues(dech.piece, dech.bpm), detecterAttaques(trames), { bpm: dech.bpm });
+  const attendues = notesAttendues(dech.piece, dech.bpm);
+  const joues = detecterAttaques(trames);
+  const r = aligner(attendues, joues, { bpm: dech.bpm });
+  // Détail de ce que l'app a entendu, à coller à Claude pour régler la détection.
+  // Trames compactées : [temps ms, énergie × 1000, hauteur MIDI × 10 ou null].
+  dech.diagnostic = JSON.stringify({
+    niveau: dech.niveau, graine: dech.graine, bpm: dech.bpm, latenceMs: r.latenceMs,
+    attendues: attendues.map((a) => [a.tMs, a.midi]),
+    joues: joues.map((j) => [j.tMs, j.midi]),
+    notes: r.notes.map((n) => [n.etat, n.jouee, n.ecartMs]),
+    enTrop: r.enTrop.map((x) => [x.tMs, x.midi]),
+    trames: trames.map((x) => [Math.round(x.tMs), Math.round(x.rms * 1000), x.f0 ? Math.round(midiDeFrequence(x.f0) * 10) : null]),
+  });
   const marques = r.notes.map((n) => ({ etat: n.etat, joue: n.etat === 'fausse' ? nomMidi(n.jouee) : null }));
   $('dech-partition').innerHTML = partitionSvg(dech.piece, { marques, enTrop: r.enTrop });
   $('dech-etat').textContent = '';
@@ -732,7 +744,14 @@ function terminerPiece() {
   actionsDech(
     boutonDech('Suivante', nouvellePiece, 'btn-principal'),
     boutonDech('▶ Écouter la pièce', ecouterPiece),
-    boutonRejouer);
+    boutonRejouer,
+    boutonDech('Copier le détail pour Claude', copierDiagnostic, 'btn-lien'));
+}
+
+async function copierDiagnostic(ev) {
+  const bouton = ev.currentTarget;
+  try { await navigator.clipboard.writeText(dech.diagnostic); bouton.textContent = 'Détail copié ✓ : colle-le à Claude'; }
+  catch { bouton.textContent = 'Copie impossible sur cet appareil'; }
 }
 
 function ecouterPiece() {
