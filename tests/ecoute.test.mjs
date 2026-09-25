@@ -62,6 +62,32 @@ test('legato : un changement de hauteur sans saut d energie est une attaque', ()
   assert.ok(proche(a[1].tMs, 800, 30));
 });
 
+// Trames réelles (fa♯4 joué doucement) : le détecteur alterne fa♯4 et fa♯3 (sous-harmonique).
+// La médiane de {54, 66} donnait 60 (do) : une note juste comptée fausse.
+test('erreur d octave vers le bas : la note garde sa vraie hauteur', () => {
+  const brut = [[2694, 12, 640], [2712, 11, 641], [2724, 11, 641], [2739, 15, 638], [2754, 22, null], [2769, 27, null],
+    [2784, 25, null], [2799, 23, null], [2814, 20, null], [2830, 15, null], [2846, 14, null], [2859, 11, 542],
+    [2874, 10, 661], [2890, 9, null], [2904, 9, null], [2919, 8, null], [2934, 7, null], [2949, 7, null], [2965, 6, null]];
+  const trames = brut.map(([tMs, r, h]) => ({ tMs, rms: r / 1000, f0: h === null ? null : hz(h / 10) }));
+  const a = detecterAttaques(trames);
+  assert.deepEqual(a.map((x) => [x.tMs, x.midi]), [[2754, 66]]);
+  const alterne = simuler([{ tMs: 300, midi: 66 }]).map((t, k) => (t.f0 && k % 2 ? { ...t, f0: hz(54) } : t));
+  assert.deepEqual(detecterAttaques(alterne).map((x) => x.midi), [66]);
+});
+
+// Trames réelles : mi4 frappé pendant que ré4 sonne encore. Pas de saut d'énergie assez net ; la hauteur
+// ne se stabilise qu'à 8424 ms, alors que le ré s'arrête (attaque réelle) dès 8320 ms.
+test('legato reel : l attaque date de la fin de l ancienne hauteur, pas de la stabilisation', () => {
+  const brut = [[8154, 27, 621], [8170, 26, 621], [8184, 25, 621], [8201, 24, 621], [8214, 24, 621], [8231, 23, 621],
+    [8244, 22, 621], [8261, 21, 621], [8274, 21, 620], [8289, 19, 620], [8304, 21, 620], [8320, 26, null], [8336, 25, null],
+    [8349, 23, null], [8366, 25, null], [8379, 29, null], [8395, 28, null], [8410, 23, null], [8424, 22, 640], [8439, 20, 641],
+    [8454, 19, 641], [8469, 19, 641], [8484, 18, 640], [8499, 16, 641], [8514, 16, 640], [8531, 15, 640], [8545, 14, 641],
+    [8559, 14, 640], [8574, 13, 641], [8589, 12, 641], [8604, 12, 640], [8620, 11, 640]];
+  const trames = brut.map(([tMs, r, h]) => ({ tMs, rms: r / 1000, f0: h === null ? null : hz(h / 10) }));
+  const a = detecterAttaques(trames);
+  assert.deepEqual(a.map((x) => [x.tMs, x.midi]), [[8320, 64]]);
+});
+
 test('bruits sans hauteur et souffle faible : rien', () => {
   const trames = simuler([{ tMs: 0, midi: 60 }], { finMs: 2000 }).map((t) => ({ tMs: t.tMs, rms: 0.002, f0: null }));
   trames[60] = { tMs: trames[60].tMs, rms: 0.3, f0: null }; // clic : fort mais sans hauteur

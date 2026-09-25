@@ -37,7 +37,15 @@ export function detecterAttaques(trames, regles = REGLES_ECOUTE) {
       const sautEnergie = t.rms >= rapport * Math.max(ref, seuilRms / 2);
       // un saut d'octave pendant l'extinction est une erreur de mesure, pas une nouvelle note
       const nouvelleHauteur = s !== null && courante !== null && s !== courante && Math.abs(s - courante) !== 12;
-      if (sautEnergie || nouvelleHauteur) { debuts.push(k); dernier = t.tMs; courante = null; }
+      if (sautEnergie || nouvelleHauteur) {
+        // Legato : la nouvelle hauteur n'est stable qu'une centaine de ms après la frappe ; l'attaque
+        // réelle suit la dernière trame de l'ancienne hauteur (au plus 150 ms plus tôt).
+        let d = k;
+        if (!sautEnergie) {
+          while (d - 1 > 0 && hauteur[d - 1] !== courante && t.tMs - trames[d - 1].tMs <= 150 && trames[d - 1].tMs - dernier >= refractaireMs) d--;
+        }
+        debuts.push(d); dernier = t.tMs; courante = null;
+      }
     }
     if (courante === null && s !== null && t.tMs - dernier >= 30) courante = s;
     if (t.rms < seuilRms) courante = null;
@@ -46,8 +54,11 @@ export function detecterAttaques(trames, regles = REGLES_ECOUTE) {
   debuts.forEach((k, i) => {
     const t0 = trames[k].tMs;
     const tFin = i + 1 < debuts.length ? trames[debuts[i + 1]].tMs : Infinity;
-    const h = trames.filter((x) => x.f0 && x.tMs >= t0 + de && x.tMs <= Math.min(t0 + a, tFin - 1)).map((x) => midiDeFrequence(x.f0));
-    if (h.length >= 2) attaques.push({ tMs: Math.round(t0), midi: Math.round(medianeEcoute(h)) });
+    const h = trames.filter((x) => x.f0 && x.tMs >= t0 + de && x.tMs <= Math.min(t0 + a, tFin - 1)).map((x) => Math.round(midiDeFrequence(x.f0)));
+    // Une note douce est souvent lue une octave trop bas (sous-harmonique) : ramenée à l'octave
+    // entendue au-dessus, sinon la médiane de {fa♯3, fa♯4} tomberait sur do.
+    const ramenee = h.map((v) => (h.includes(v + 12) ? v + 12 : v));
+    if (h.length >= 2) attaques.push({ tMs: Math.round(t0), midi: Math.round(medianeEcoute(ramenee)) });
   });
   return attaques;
 }
