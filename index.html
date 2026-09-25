@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Harmonie au clavier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<div id="app">
+  <section id="ecran-accueil">
+    <div class="entete">
+      <div>
+        <p class="eyebrow">Réflexes d'harmonie</p>
+        <h1>Harmonie au clavier</h1>
+      </div>
+    </div>
+    <button class="btn btn-principal" id="btn-seance">Séance du jour</button>
+    <p class="sous" id="accueil-dues"></p>
+    <div>
+      <p class="eyebrow" style="margin-bottom:8px">Entraîner une dimension</p>
+      <div class="dimensions" id="accueil-dimensions"></div>
+    </div>
+    <label class="option" for="opt-silence">
+      <input type="checkbox" id="opt-silence">
+      <span><b>Mode silencieux</b><br><span class="sous">Aucune question sonore : Oreille, Chant, Déchiffrage et les niveaux sonores du Rythme sont mis de côté.</span></span>
+    </label>
+    <div class="pied">
+      <button class="btn btn-lien" id="btn-progression">Voir ma progression</button>
+      <p class="note-stockage" id="note-stockage"></p>
+    </div>
+  </section>
+
+  <section id="ecran-seance" hidden>
+    <div class="barre-seance">
+      <span class="compteur" id="seance-compteur"></span>
+      <span class="actions-seance">
+        <button class="btn btn-lien" id="btn-pause" style="width:auto">Pause</button>
+        <button class="btn btn-lien" id="btn-quitter" style="width:auto">Arrêter</button>
+      </span>
+    </div>
+    <div class="voile" id="voile-pause" hidden>
+      <div class="voile-contenu">
+        <p class="eyebrow">Séance en pause</p>
+        <h2>Le chrono est arrêté</h2>
+        <p class="sous">La question reste cachée. Reprends quand tu es prêt.</p>
+        <button class="btn btn-principal" id="btn-reprendre">Reprendre</button>
+      </div>
+    </div>
+    <div class="progression-seance"><i id="seance-barre" style="width:0%"></i></div>
+    <div class="enonce" id="seance-enonce"></div>
+    <div class="choix" id="seance-choix"></div>
+    <div id="seance-correction" hidden></div>
+    <button class="btn btn-principal" id="btn-continuer" hidden>Continuer</button>
+  </section>
+
+  <section id="ecran-bilan" hidden>
+    <div>
+      <p class="eyebrow">Séance terminée</p>
+      <h1>Bilan</h1>
+    </div>
+    <div class="tuiles" id="bilan-tuiles"></div>
+    <div id="bilan-debloques"></div>
+    <button class="btn btn-principal" id="btn-encore">Encore 10</button>
+    <button class="btn btn-second" id="btn-accueil-bilan">Accueil</button>
+  </section>
+
+  <section id="ecran-progression" hidden>
+    <div class="entete">
+      <h1>Progression</h1>
+      <button class="btn btn-lien" id="btn-accueil-prog" style="width:auto">Accueil</button>
+    </div>
+    <div id="prog-dimensions" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div class="bloc" id="prog-dechiffrage"></div>
+    <div class="bloc" id="prog-explication"></div>
+    <div class="bloc">
+      <h3>Dernières séances</h3>
+      <div id="prog-seances"></div>
+    </div>
+    <div class="bloc">
+      <h3>Sauvegarde et bilan</h3>
+      <p class="sous">« Copier » met toute ta progression dans le presse-papiers : colle-la à Claude avant une leçon, ou garde-la comme sauvegarde.</p>
+      <button class="btn btn-second" id="btn-exporter">Copier ma progression</button>
+      <textarea id="export-zone" hidden readonly></textarea>
+      <button class="btn btn-lien" id="btn-importer">Importer une sauvegarde</button>
+      <div id="import-zone" hidden style="display:flex;flex-direction:column;gap:8px">
+        <textarea id="import-texte" placeholder="Colle ici une sauvegarde"></textarea>
+        <button class="btn btn-second" id="btn-importer-valider">Remplacer ma progression</button>
+        <p class="sous" id="import-message"></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="ecran-dechiffrage" hidden>
+    <div class="entete">
+      <div>
+        <p class="eyebrow" id="dech-niveau"></p>
+        <h2>Déchiffrage</h2>
+      </div>
+      <button class="btn btn-lien" id="btn-dech-accueil" style="width:auto">Accueil</button>
+    </div>
+    <div class="partition-boite" id="dech-partition"></div>
+    <div class="pulsation" id="dech-pulsation" hidden><i></i></div>
+    <p class="sous centre" id="dech-etat"></p>
+    <div id="dech-correction" hidden></div>
+    <div class="dech-actions" id="dech-actions"></div>
+    <label class="option" for="opt-clic">
+      <input type="checkbox" id="opt-clic">
+      <span><b>Clic sonore</b><br><span class="sous">Le micro l'entend aussi : garde-le coupé si le point qui clignote te suffit.</span></span>
+    </label>
+    <button class="btn btn-lien" id="btn-test-micro">Tester le micro</button>
+  </section>
+
+  <section id="ecran-test-micro" hidden>
+    <div class="entete">
+      <h2>Test du micro</h2>
+      <button class="btn btn-lien" id="btn-test-retour" style="width:auto">Retour</button>
+    </div>
+    <p class="sous">Pose le téléphone sur le piano et joue quelques notes, lentement puis plus vite, détachées puis liées. L'app affiche ce qu'elle entend.</p>
+    <div class="note-chantee" id="test-note">–</div>
+    <div class="jauge"><i id="test-niveau"></i></div>
+    <p class="sous" id="test-fil"></p>
+  </section>
+</div>
+<script type="module" src="src/interface.js"></script>
+</body>
+</html>
