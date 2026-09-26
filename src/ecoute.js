@@ -11,6 +11,8 @@ export const REGLES_ECOUTE = {
   // une plage plus large n'y ajouterait que des erreurs d'octave.
   fMin: { droite: 180, gauche: 100 },
   toleranceDecaleMs: 120, arretTemps: 0.75, tauxReussite: 0.85, decaleesMax: 0.2,
+  // Mains ensemble (verification.js) : montée des harmoniques d'une note après son instant.
+  ensemble: { montee: 2, domine: 1.5, monteeManquee: 1.3, plancherRelatif: 0.01, harmoniquesMin: 2, douteusesMax: 0.3 },
 };
 
 function medianeEcoute(t) { const s = [...t].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
@@ -25,7 +27,8 @@ export function trameDe(buf, sampleRate, tMs, { fMin = REGLES_ECOUTE.fMin.droite
 // Une attaque = un saut d'énergie, ou (legato) une nouvelle hauteur stable sans saut d'énergie.
 // Sa hauteur = médiane des hauteurs mesurées entre +40 et +200 ms, avant l'attaque suivante.
 // Un bruit sans hauteur (clic, choc) n'est pas une note.
-export function detecterAttaques(trames, regles = REGLES_ECOUTE) {
+// { hauteur: false } : attaques d'énergie seules (mains ensemble), sans hauteur, midi 0.
+export function detecterAttaques(trames, regles = REGLES_ECOUTE, { hauteur: avecHauteur = true } = {}) {
   const { seuilRms, rapport, refractaireMs, fenetreHauteur: [de, a] } = regles;
   const hauteur = trames.map((x) => (x.f0 ? Math.round(midiDeFrequence(x.f0)) : null));
   const stableEn = (k) => (k + 2 < trames.length && hauteur[k] !== null && hauteur[k + 1] === hauteur[k] && hauteur[k + 2] === hauteur[k] ? hauteur[k] : null);
@@ -53,6 +56,7 @@ export function detecterAttaques(trames, regles = REGLES_ECOUTE) {
     if (courante === null && s !== null && t.tMs - dernier >= 30) courante = s;
     if (t.rms < seuilRms) courante = null;
   }
+  if (!avecHauteur) return debuts.map((k) => ({ tMs: Math.round(trames[k].tMs), midi: 0 }));
   const attaques = [];
   debuts.forEach((k, i) => {
     const t0 = trames[k].tMs;
@@ -136,14 +140,14 @@ export function aligner(attendues, joues, { bpm, regles = REGLES_ECOUTE } = {}) 
   }
 
   // Compute notes with per-segment bases
-  const notes = attendues.map(() => ({ etat: 'manquee', jouee: null, ecartMs: null }));
+  const notes = attendues.map(() => ({ etat: 'manquee', jouee: null, ecartMs: null, tJoueMs: null }));
   for (let pIdx = 0; pIdx < paires.length; pIdx++) {
     const p = paires[pIdx];
     const segmentIdx = segments.findIndex((seg) => pIdx >= seg.start && pIdx < seg.end);
     const segmentBase = segmentBases[segmentIdx];
     const ecartMs = Math.round(offsets[pIdx] - segmentBase);
     const bonne = p.a.midi === p.j.midi;
-    notes[p.i] = { etat: !bonne ? 'fausse' : Math.abs(ecartMs) > regles.toleranceDecaleMs ? 'decale' : 'juste', jouee: p.j.midi, ecartMs };
+    notes[p.i] = { etat: !bonne ? 'fausse' : Math.abs(ecartMs) > regles.toleranceDecaleMs ? 'decale' : 'juste', jouee: p.j.midi, ecartMs, tJoueMs: p.j.tMs };
   }
   const enTrop = restes.reverse().map((j) => ({ tMs: joues[j].tMs, midi: joues[j].midi, pos: Math.max(0, Math.round(((joues[j].tMs - L) / battement) * U)) }));
   const bons = notes.filter((x) => x.etat === 'juste' || x.etat === 'decale');
@@ -189,13 +193,22 @@ export function creerEcoute({ getUserMedia = globalThis.navigator?.mediaDevices?
       }
       return ouverture;
     },
-    demarrer(onTrame = () => {}, { fMin } = {}) {
+    // Une main : trame { tMs, rms, f0 } sur 1024 échantillons. Mains ensemble : `fabriquer(signal, spectreDb,
+    // sampleRate, fftSize, tMs)` construit la trame à partir du signal et du spectre (fftSize 4096).
+    demarrer(onTrame = () => {}, { fMin, fftSize = 1024, fabriquer = null } = {}) {
       this.arreter();
       trames = [];
+      analyseur.fftSize = fftSize;
+      analyseur.smoothingTimeConstant = 0;
       const buf = new Float32Array(analyseur.fftSize);
+      const spectre = fabriquer ? new Float32Array(analyseur.fftSize / 2) : null;
       minuteur = setInterval(() => {
         analyseur.getFloatTimeDomainData(buf);
-        const t = trameDe(buf, ctx.sampleRate, performance.now(), { fMin });
+        let t;
+        if (fabriquer) {
+          analyseur.getFloatFrequencyData(spectre);
+          t = fabriquer(buf, spectre, ctx.sampleRate, analyseur.fftSize, performance.now());
+        } else t = trameDe(buf, ctx.sampleRate, performance.now(), { fMin });
         trames.push(t);
         onTrame(t);
       }, 15);

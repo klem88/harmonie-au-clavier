@@ -240,3 +240,43 @@ test('aligner : rien entendu, sons parasites', () => {
   const r = aligner(ATT, bruit, { bpm: 60 });
   assert.equal(r.parasites, true); assert.equal(r.compte, false); assert.equal(r.reussi, false);
 });
+
+test("attaques d'énergie seules (mains ensemble) : une attaque par frappe, sans hauteur", () => {
+  const trames = simuler([300, 800, 1300].map((tMs, i) => ({ tMs, midi: [60, 64, 67][i] }))).map((x) => ({ tMs: x.tMs, rms: x.rms }));
+  assert.equal(detecterAttaques(trames).length, 0, 'sans hauteur, le mode une main ne retient rien');
+  const a = detecterAttaques(trames, REGLES_ECOUTE, { hauteur: false });
+  assert.deepEqual(a.map((x) => x.midi), [0, 0, 0]);
+  a.forEach((x, i) => assert.ok(proche(x.tMs, [300, 800, 1300][i], 15)));
+});
+
+test('aligner : instant réel de chaque note appariée (tJoueMs), null pour une manquée', () => {
+  const attendues = [0, 1000, 2000].map((tMs, i) => ({ tMs, midi: 60, mesure: 0 }));
+  const r = aligner(attendues, [{ tMs: 150, midi: 60 }, { tMs: 2140, midi: 60 }], { bpm: 60 });
+  assert.deepEqual(r.notes.map((n) => n.tJoueMs), [150, null, 2140]);
+});
+
+test("creerEcoute().demarrer({ fftSize, fabriquer }) : spectre lu et trame fabriquée par l'appelant", async () => {
+  const lus = [];
+  const analyseur = {
+    fftSize: 0, smoothingTimeConstant: 0.8,
+    getFloatTimeDomainData(b) { b.fill(0.5); },
+    getFloatFrequencyData(s) { s.fill(-30); lus.push(s.length); },
+  };
+  class FauxContexte {
+    constructor() { this.state = 'running'; this.sampleRate = 48000; }
+    createAnalyser() { return analyseur; }
+    createMediaStreamSource() { return { connect() {} }; }
+    close() { return Promise.resolve(); }
+  }
+  const ecoute = creerEcoute({ getUserMedia: async () => ({ getTracks: () => [] }), Contexte: FauxContexte });
+  await ecoute.ouvrir();
+  const recus = [];
+  ecoute.demarrer((t) => recus.push(t), { fftSize: 4096, fabriquer: (buf, spectre, sr, n, tMs) => ({ tMs, n: buf.length, db: spectre[0], sr, fft: n }) });
+  await new Promise((r) => setTimeout(r, 50));
+  const trames = ecoute.arreter();
+  assert.equal(analyseur.fftSize, 4096);
+  assert.equal(analyseur.smoothingTimeConstant, 0);
+  assert.ok(trames.length >= 1 && recus.length === trames.length);
+  assert.deepEqual([trames[0].n, trames[0].db, trames[0].sr, trames[0].fft], [4096, -30, 48000, 4096]);
+  assert.equal(lus[0], 2048);
+});
