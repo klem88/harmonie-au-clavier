@@ -33,13 +33,18 @@ mesure 1 = I ; mesure 2 ∈ {I, IV, V} ; mesure 3 ∈ {IV, V} ; mesure 4 = I.
 - Main gauche : dans la position, I = degrés {0, 2, 4}, IV = {0, 3}, V = {1, 4}. La note du temps 1 est la
   **basse** de l'accord (degré 0, 3 ou 4) aux niveaux E1 et E2, une note de l'accord en E3.
 - **Consonance** : quand les deux mains attaquent en même temps, l'intervalle (modulo l'octave) vaut
-  0, 3, 4, 7, 8 ou 9 demi-tons ; jamais de seconde, quarte seule, triton ni septième.
+  3, 4, 7, 8 ou 9 demi-tons ; jamais de seconde, quarte seule, triton ni septième, **ni octave ou unisson** :
+  tous les harmoniques de la note du haut seraient aussi ceux de la note du bas, l'écoute ne pourrait pas la
+  juger (constaté en simulation). En E1 et E2, la note de la main droite au temps 1 n'est donc jamais la basse.
+- Génération : harmonies, rythmes, main droite puis main gauche sont retirés ensemble tant que les règles ne
+  tiennent pas (500 essais ; 20 essais de main gauche par main droite). Prototype : 0 échec sur 500 graines
+  à chaque niveau.
 
 | Niveau | Main droite | Main gauche |
 |---|---|---|
 | **E1** | règles de J1 : do majeur, 4/4, noires et blanches | rondes ou blanches (`r`, `b b`) : la basse de l'accord ; en `b b`, la seconde blanche est la basse ou la quinte de l'accord |
 | **E2** | règles de J2 : do, sol, fa, ré majeur, 4/4, paires de croches | noires et blanches (`n n n n`, `b n n`, `n n b`, `n b n`, `b b`), degrés conjoints surtout, sauts ≤ tierce ; jamais de croches |
-| **E3** | rythmes de J2 en 4/4, rythmes 3/4 de J3 ; 3/4 ou 4/4 | petite mélodie en noires, blanches (et blanche pointée ou ronde pour finir), sauts ≤ quarte ; **au plus la moitié** des attaques de la main gauche tombent en même temps qu'une attaque de la main droite (rythmes complémentaires) |
+| **E3** | rythmes de J2 en 4/4, rythmes 3/4 de J3 ; 3/4 ou 4/4 | petite mélodie en noires, blanches (et blanche pointée), sauts ≤ quarte ; **rythmes complémentaires** : dans chaque mesure sauf la dernière, hors premier temps, au moins autant de temps où une seule main attaque que de temps où les deux attaquent |
 
 Même niveau + même graine = même pièce. La pièce a la forme
 `{ niveau, graine, main: 'ensemble', tonalite, tonique, armure, temps, mesures, harmonies: ['I', …], droite: [notes], gauche: [notes] }`,
@@ -63,18 +68,27 @@ chaque note ayant la forme actuelle `{ note, octave, midi, pos, duree, token, me
 
 ### 5.1 Capture
 
-En mode ensemble, `creerEcoute().demarrer(onTrame, { spectre: { midis } })` règle l'analyseur à `fftSize = 4096`
-(~85 ms à 48 kHz, `smoothingTimeConstant = 0`) et, toutes les 15 ms, lit l'énergie (domaine temporel) et le
-spectre natif (`getFloatFrequencyData`). La trame devient `{ tMs, rms, s: [saillance de chaque midi candidat] }`.
+En mode ensemble, `creerEcoute().demarrer(onTrame, { fftSize: 4096, fabriquer })` règle l'analyseur à
+`fftSize = 4096` (~85 ms à 48 kHz, `smoothingTimeConstant = 0`) et, toutes les 15 ms, lit le signal et le
+spectre natif (`getFloatFrequencyData`, en dB) puis appelle `fabriquer` (fourni par l'interface, qui appelle
+`trameEnsemble` : `ecoute.js` n'importe pas `verification.js`). La trame est `{ tMs, rms, h }` :
+- `rms` sur les 1024 derniers échantillons, pour garder des attaques nettes ;
+- `h` : pour chaque candidat, l'amplitude de ses harmoniques 1 à 6.
+
 Candidats : toutes les notes de la pièce et leurs demi-tons voisins (~30 au plus), fixés au lancement.
 Le mode une main reste inchangé (`fftSize = 1024`, `f0`).
 
-### 5.2 Saillance d'une note (pur, `src/verification.js`)
+### 5.2 Amplitude d'une note (pur, `src/verification.js`)
 
-`saillance(spectreLineaire, { sampleRate, fftSize }, midi)` = somme, pour h = 1 à 5, du maximum d'amplitude
-dans les cases à ± un quart de ton de h × f(midi). Les harmoniques sont indispensables : à do3 deux demi-tons
-sont à 8 Hz l'un de l'autre, bien moins que la résolution ; au 3ᵉ harmonique ils sont à 23 Hz. La conversion dB →
-amplitude linéaire se fait avant (`10^(dB/20)`).
+- Amplitude d'un harmonique = spectre linéaire (`10^(dB/20)`) **interpolé à la fréquence exacte** h × f(midi).
+  Prendre le maximum sur ± un quart de ton, comme prévu d'abord, laissait le voisin « voir » la note juste :
+  la fenêtre de Blackman étale chaque raie sur ± 35 Hz.
+- Harmoniques **utiles** d'une note : ceux où le demi-ton voisin est à au moins deux cases du spectre
+  (h × f × 0,0595 ≥ 2 × sampleRate / fftSize, soit h × f ≥ ~390 Hz), et qui ne tombent (à un quart de ton près)
+  sur aucun harmonique 1 à 8 d'une **autre note attaquée au même instant**. Les notes tenues ne sont pas
+  masquées : elles ne montent pas, la comparaison avant / après les neutralise.
+- Valeur d'une note dans une trame = **moyenne** de ses harmoniques utiles ; moins de 2 harmoniques utiles →
+  la note ne peut pas être jugée.
 
 ### 5.3 Temps et continuité
 
@@ -88,19 +102,30 @@ constant, l'écart de chaque instant et les arrêts. Rien n'est changé dans `al
 Pour chaque note de chaque main, à son instant `t` (retard retiré) :
 - `avant` = médiane de la saillance de la note entre `t − 120` et `t − 20` ms ;
 - `apres` = maximum de la saillance entre `t + 40` et `t + min(250, durée de la note)` ms ;
-- `montee = apres / max(avant, plancher)` ; idem pour les deux voisins (± 1 demi-ton).
-- Un voisin est **ignoré** si sa hauteur est sonnée par une autre note attendue au même moment (attaquée ou
-  tenue), ou si sa fondamentale tombe (à un quart de ton près) sur un harmonique 2 à 5 d'une telle note.
+- `montee = apres / max(avant, plancher)`, avec `plancher` = 1 % du maximum de tout l'enregistrement ;
+  idem pour les deux voisins (± 1 demi-ton), dont les harmoniques utiles excluent aussi ceux de la note.
+- Un voisin qui ne peut pas être jugé (moins de 2 harmoniques utiles) est ignoré.
+- L'instant réel d'une position = l'attaque appariée par `aligner` (`tJoueMs`, ajouté à son résultat), sinon
+  l'instant attendu + le dernier décalage connu.
 
 | Verdict | Condition (seuils de départ, dans `REGLES_ECOUTE.ensemble`) |
 |---|---|
 | **juste** | `montee ≥ 2` et `apres ≥ 1,5 ×` l'`apres` de chaque voisin retenu |
-| **fausse probable** | un voisin retenu a `montee ≥ 2` et un `apres ≥ 1,5 ×` celui de la note |
-| **manquée** | aucune attaque appariée à cet instant et `montee < 1,3` |
-| **douteuse** | tous les autres cas |
+| **fausse probable** | sinon, un voisin retenu a `montee ≥ 2` et un `apres ≥ 1,5 ×` celui de la note |
+| **manquée** | sinon, `montee < 1,3` et aucun voisin retenu n'a `montee ≥ 2` |
+| **douteuse** | tous les autres cas, et toute note qui ne peut pas être jugée |
 
 Une note juste dont l'instant est décalé de plus de 120 ms devient **décalée** (règle actuelle).
-Les seuils (2 ; 1,5 ; 1,3 ; plancher) sont des valeurs de départ, à régler sur les premiers essais réels.
+Les seuils (2 ; 1,5 ; 1,3 ; 1 %) sont des valeurs de départ, à régler sur les premiers essais réels.
+
+**Prototype (simulation, 24 pièces, décalages ±40 ms, nuances variées, main gauche plus douce) :**
+
+| Cas | Résultat |
+|---|---|
+| notes justes, main droite | 99 % justes, 1 % douteuses |
+| notes justes, main gauche | 82 % justes, 16 % douteuses, 2 % fausses ou manquées à tort |
+| fausse note jouée (± 1 demi-ton) | 96 % fausses, 4 % douteuses |
+| note oubliée | 75 % manquées, 13 % fausses, 12 % douteuses |
 
 ### 5.5 Résultat
 
@@ -123,7 +148,8 @@ Les seuils (2 ; 1,5 ; 1,3 ; plancher) sont des valeurs de départ, à régler su
   boutons habituels (Suivante, Écouter, Réessayer sans compter, Copier le détail pour Claude).
 - Pièce rejouée ou qui ne compte pas : pas de confirmation, rien d'enregistré (règles actuelles).
 - « Copier le détail pour Claude » : en plus des champs actuels, les candidats, les trames
-  `[tMs, rms×1000, saillances arrondies]` et, par note, `[main, midi, etat, montee, voisins]`.
+  `[tMs, rms×1000, puis pour chaque candidat la moyenne de ses harmoniques × 10⁴, arrondie]` et, par note,
+  `[main, midi, etat, montee, voisins]`.
 
 ## 7. Progression
 
@@ -142,9 +168,10 @@ Les seuils (2 ; 1,5 ; 1,3 ; plancher) sont des valeurs de départ, à régler su
 
 | Fichier | Rôle | Pur / testé |
 |---|---|---|
-| `src/ensemble.js` (nouveau) | `NIVEAUX_ENSEMBLE`, `genererPieceEnsemble(niveau, graine)`, `notesAttenduesEnsemble(piece, bpm)` (notes avec `main`), `instantsAttendus`, `sequencePieceEnsemble`. Réutilise `generateurAlea`, `melodieValide`, les tonalités et cellules de `piece.js` (exportées au besoin). | oui |
-| `src/verification.js` (nouveau) | `saillance`, `candidatsPiece`, `verifierEnsemble` (§ 5.2–5.5). | oui |
-| `src/ecoute.js` | `detecterAttaques` accepte des trames sans `f0` (attaques d'énergie seules) ; `creerEcoute().demarrer` gagne l'option `spectre` (§ 5.1) ; `REGLES_ECOUTE.ensemble`. | oui (partie pure) |
+| `src/ensemble.js` (nouveau) | `NIVEAUX_ENSEMBLE`, `genererPieceEnsemble(niveau, graine)`, `notesAttenduesEnsemble(piece, bpm)` (notes avec `main`), `instantsAttendus`, `notesAJouer` (lecture de l'exemple). Réutilise `generateurAlea`, `melodieValide`, `choisirDans`, `tirerPas`, `noteDuDegre` de `piece.js` (exportés). | oui |
+| `src/verification.js` (nouveau) | `candidatsPiece`, `trameEnsemble`, `amplitudesDeDb`, `harmoniquesLibres`, `verifierEnsemble` (§ 5.1–5.5). | oui |
+| `src/ecoute.js` | `detecterAttaques(trames, regles, { hauteur: false })` : attaques d'énergie seules ; `aligner` renvoie aussi `tJoueMs` par note ; `creerEcoute().demarrer` gagne les options `fftSize` et `fabriquer` (§ 5.1) ; `REGLES_ECOUTE.ensemble`. | oui (partie pure) |
+| `src/audio.js` | `creerLecteur().jouerNotes([{ midi, debutMs, dureeMs }])` : notes superposées (les deux mains), pour « Écouter la pièce ». | non (Web Audio) |
 | `src/partition.js` | Portée à une hauteur donnée ; grande portée pour une pièce ensemble ; marque « douteuse ». | oui |
 | `src/dechiffrage.js` | Parcours `ensemble`, accès, déblocage avec condition sur les mains, `enregistrerPiece` accepte `propose`/`douteuses`. | oui |
 | `src/interface.js`, `src/style.css` | Troisième bouton, préparation 60 s, confirmation, marque grise. | non (vérifié dans le navigateur) |
