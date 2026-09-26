@@ -831,7 +831,7 @@ function terminerPieceEnsemble() {
   const boutonsFin = () => actionsDech(
     boutonDech('Suivante', nouvellePiece, 'btn-principal'),
     boutonDech('▶ Écouter la pièce', ecouterPiece),
-    boutonDech(r.compte ? '↻ Réessayer (sans compter)' : '↻ Réessayer', () => { dech.rejoue = r.compte; preparerPiece(); }),
+    boutonDech(r.compte ? '↻ Réessayer (sans compter)' : '↻ Réessayer', () => { if (r.compte) dech.rejoue = true; preparerPiece(); }),
     boutonDech('Copier le détail pour Claude', copierDiagnostic, 'btn-lien'));
   if (!r.compte) {
     zone.append(
