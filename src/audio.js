@@ -78,6 +78,14 @@ export function creerLecteur(Contexte = globalThis.AudioContext || globalThis.we
       }
       return dureeTotaleMs(sequence);
     },
+    // Notes superposées (mains ensemble) : [{ midi, debutMs, dureeMs }] ; renvoie la durée totale en ms.
+    jouerNotes(notes) {
+      this.arreter();
+      const c = assurer();
+      const t0 = c.currentTime + 0.05;
+      for (const n of notes) noteA(n.midi, t0 + n.debutMs / 1000, n.dureeMs / 1000, 0.35);
+      return Math.max(0, ...notes.map((n) => n.debutMs + n.dureeMs));
+    },
     arreter() {
       for (const o of enCours) { try { o.stop(); } catch { /* déjà arrêté */ } }
       enCours = [];

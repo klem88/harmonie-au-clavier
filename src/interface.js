@@ -12,9 +12,11 @@ import { cellule, onsetsMs, notationSvg, evaluerFrappe, commentaireFrappe, frapp
 import { creerMicro, evaluerChant, commentaireChant, midiDeFrequence } from './voix.js';
 import { nomFr } from './theorie.js';
 import { genererPiece, notesAttendues, sequencePiece, dureePieceMs } from './piece.js';
+import { genererPieceEnsemble, notesAJouer } from './ensemble.js';
 import { partitionSvg, geometriePartition, curseurA } from './partition.js';
 import { creerEcoute, detecterAttaques, aligner, REGLES_ECOUTE } from './ecoute.js';
-import { enregistrerPiece, etatDeblocageDechiffrage } from './dechiffrage.js';
+import { candidatsPiece, trameEnsemble, amplitudesDeDb, verifierEnsemble, HARMONIQUES } from './verification.js';
+import { enregistrerPiece, etatDeblocageDechiffrage, ensembleOuvert, PARCOURS } from './dechiffrage.js';
 
 const $ = (id) => document.getElementById(id);
 const ECRANS = ['accueil', 'seance', 'bilan', 'progression', 'dechiffrage', 'test-micro'];
@@ -28,7 +30,8 @@ let micro = null;   // ouvert à la première carte de chant (demande d'autorisa
 // le chant est alors mis de côté (ni séance, ni cartes dues) plutôt que de bloquer la séance sur une erreur.
 const politique = document.permissionsPolicy || document.featurePolicy;
 const MICRO_PERMIS = politique?.allowsFeature ? politique.allowsFeature('microphone') : globalThis.top === globalThis.self;
-const NOMS_MAIN = { droite: 'Main droite', gauche: 'Main gauche' };
+const NOMS_MAIN = { droite: 'Main droite', gauche: 'Main gauche', ensemble: 'Mains ensemble' };
+const CLE_MAIN = { droite: 'clé de sol', gauche: 'clé de fa', ensemble: 'grande portée' };
 const NOMS_CLASSE = ['do', 'do♯', 'ré', 'mi♭', 'mi', 'fa', 'fa♯', 'sol', 'la♭', 'la', 'si♭', 'si'];
 let dech = null;       // pièce de déchiffrage en cours
 let ecoute = null;     // micro du déchiffrage, ouvert à la première pièce jouée
@@ -125,10 +128,10 @@ function rendreAccueil() {
       el('span', { class: 'detail manque' }, sansMicro ? 'Micro indisponible dans la page claude.ai : chant mis de côté' : muet ? 'Mise de côté en mode silencieux' : manque)));
   }
   // Déchiffrage : pas de cartes, sa propre carte d'accueil
-  // Déchiffrage : la carte montre la main choisie en dernier ; l'autre main en une ligne.
+  // Déchiffrage : la carte montre le parcours choisi en dernier ; les autres en une ligne.
   const dd = etat.dechiffrage;
   const main = dd.main;
-  const autre = main === 'droite' ? 'gauche' : 'droite';
+  const autres = PARCOURS.filter((m) => m !== main && (m !== 'ensemble' || ensembleOuvert(etat)));
   const bloque = etatDeblocageDechiffrage(etat, main);
   const muetJ = !MICRO_PERMIS || silence;
   const nbPieces = dd.historique.filter((h) => (h.main ?? 'droite') === main).length;
@@ -136,7 +139,7 @@ function rendreAccueil() {
     el('span', { class: 'nom' }, `Déchiffrage · ${NOMS_MAIN[main]}`),
     el('span', { class: 'niveau' }, `niv. ${dd[main].niveau}`),
     el('span', { class: 'barre' }, el('i', { style: `width:${bloque ? pourcent(bloque.reussites, bloque.cible) : 100}%` })),
-    el('span', { class: 'detail' }, `${nbPieces} pièce${nbPieces > 1 ? 's' : ''} jouée${nbPieces > 1 ? 's' : ''} · ${dd[main].bpm[dd[main].niveau]} à la noire · ${NOMS_MAIN[autre]} : niv. ${dd[autre].niveau}`),
+    el('span', { class: 'detail' }, `${nbPieces} pièce${nbPieces > 1 ? 's' : ''} jouée${nbPieces > 1 ? 's' : ''} · ${dd[main].bpm[dd[main].niveau]} à la noire · ${autres.map((m) => `${NOMS_MAIN[m]} : niv. ${dd[m].niveau}`).join(' · ')}`),
     el('span', { class: 'detail manque' }, !MICRO_PERMIS ? 'Micro indisponible ici : déchiffrage mis de côté'
       : silence ? 'Mise de côté en mode silencieux'
         : bloque ? `Niv. ${bloque.suivant} : ${bloque.reussites}/${bloque.cible} réussites sur les ${bloque.fenetre} dernières pièces` : 'Tous les niveaux ouverts')));
@@ -533,18 +536,21 @@ function rendreProgression() {
   const parcours = (main) => {
     const p = dd[main];
     const bloque = etatDeblocageDechiffrage(etat, main);
-    return el('p', { class: 'sous' }, el('b', {}, `${NOMS_MAIN[main]} (clé de ${main === 'droite' ? 'sol' : 'fa'}) · niveau ${p.niveau}`),
+    if (main === 'ensemble' && !ensembleOuvert(etat)) return el('p', { class: 'sous' }, el('b', {}, `${NOMS_MAIN[main]} (${CLE_MAIN[main]})`), ' : s'ouvre au niveau 2 des deux mains.');
+    const mains = bloque?.mainsRequises ? ` et le niveau ${bloque.mainsRequises} des deux mains${bloque.mainsOk ? ' ✓' : ''}` : '';
+    return el('p', { class: 'sous' }, el('b', {}, `${NOMS_MAIN[main]} (${CLE_MAIN[main]}) · niveau ${p.niveau}`),
       ` · tempo ${Object.entries(p.bpm).map(([n, v]) => `niv. ${n} : ${v}`).join(', ')}. `,
-      bloque ? `Pour ouvrir le niveau ${bloque.suivant} : ${bloque.reussites}/${bloque.cible} réussites sur les ${bloque.fenetre} dernières pièces (${bloque.jouees} jouée${bloque.jouees > 1 ? 's' : ''}).` : 'Tous les niveaux sont ouverts.');
+      bloque ? `Pour ouvrir le niveau ${bloque.suivant} : ${bloque.reussites}/${bloque.cible} réussites sur les ${bloque.fenetre} dernières pièces (${bloque.jouees} jouée${bloque.jouees > 1 ? 's' : ''})${mains}.` : 'Tous les niveaux sont ouverts.');
   };
-  $('prog-dechiffrage').replaceChildren(
-    el('h3', {}, 'Déchiffrage au piano'),
-    parcours('droite'),
-    parcours('gauche'),
+  $(‘prog-dechiffrage’).replaceChildren(
+    el(‘h3’, {}, ‘Déchiffrage au piano’),
+    parcours(‘droite’),
+    parcours(‘gauche’),
+    parcours(‘ensemble’),
     recentes.length
-      ? el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'Date'), el('th', {}, 'Main'), el('th', {}, 'Niv.'), el('th', {}, 'Justes'), el('th', {}, 'Tempo'))),
-        el('tbody', {}, ...recentes.map((h) => el('tr', {}, el('td', {}, date(h.date)), el('td', {}, (h.main ?? 'droite') === 'gauche' ? 'MG' : 'MD'), el('td', {}, String(h.niveau)), el('td', {}, `${h.justes}/${h.total}${h.reussi ? ' ✓' : ''}`), el('td', {}, String(h.bpm))))))
-      : el('p', { class: 'sous' }, 'Aucune pièce jouée pour l’instant.'),
+      ? el(‘table’, {}, el(‘thead’, {}, el(‘tr’, {}, el(‘th’, {}, ‘Date’), el(‘th’, {}, ‘Main’), el(‘th’, {}, ‘Niv.’), el(‘th’, {}, ‘Justes’), el(‘th’, {}, ‘Tempo’))),
+        el(‘tbody’, {}, ...recentes.map((h) => el(‘tr’, {}, el(‘td’, {}, date(h.date)), el(‘td’, {}, { droite: ‘MD’, gauche: ‘MG’, ensemble: ‘2M’ }[h.main ?? ‘droite’]), el(‘td’, {}, String(h.niveau)), el(‘td’, {}, `${h.justes}/${h.total}${h.reussi ? ‘ ✓’ : ‘’}`), el(‘td’, {}, String(h.bpm))))))
+      : el(‘p’, { class: ‘sous’ }, ‘Aucune pièce jouée pour l’instant.’),
   );
   $('btn-exporter').textContent = 'Copier ma progression';
   $('import-zone').hidden = true;
@@ -595,6 +601,7 @@ function boutonDech(texte, action, classe = 'btn-second') { return el('button', 
 function actionsDech(...boutons) { $('dech-actions').replaceChildren(...boutons); }
 
 function ouvrirDechiffrage() {
+  if (etat.dechiffrage.main === 'ensemble' && !ensembleOuvert(etat)) etat.dechiffrage.main = 'droite';
   $('opt-clic').checked = !!etat.prefs.clic;
   montrer('dechiffrage');
   garderEcranAllume();
@@ -613,17 +620,23 @@ function nouvellePiece() {
   const { niveau, bpm } = d[main];
   const graine = Math.floor(Math.random() * 2 ** 31);
   arreterDechiffrage(); // sinon le compte à rebours de la pièce remplacée continue et relance le jeu
-  dech = { piece: genererPiece(niveau, graine, { main }), graine, main, niveau, bpm: bpm[niveau], rejoue: false, phase: null, minuteur: null, raf: null, origine: 0 };
+  const piece = main === 'ensemble' ? genererPieceEnsemble(niveau, graine) : genererPiece(niveau, graine, { main });
+  dech = { piece, graine, main, niveau, bpm: bpm[niveau], rejoue: false, phase: null, minuteur: null, raf: null, origine: 0 };
   preparerPiece();
 }
 
 // Choix de la main : visible en préparation et après la correction, caché pendant le jeu.
 function montrerChoixMain(visible) {
   $('dech-main').hidden = !visible;
-  for (const b of $('dech-main').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.main === etat.dechiffrage.main));
+  for (const b of $('dech-main').querySelectorAll('button')) {
+    b.setAttribute('aria-pressed', String(b.dataset.main === etat.dechiffrage.main));
+    if (b.dataset.main === 'ensemble') b.disabled = !ensembleOuvert(etat);
+  }
+  $('dech-ensemble-sous').textContent = ensembleOuvert(etat) ? 'grande portée' : 's'ouvre au niveau 2 des deux mains';
 }
 function choisirMain(main) {
   if (!dech || dech.phase === 'jeu' || etat.dechiffrage.main === main) return;
+  if (main === 'ensemble' && !ensembleOuvert(etat)) return;
   etat.dechiffrage.main = main;
   sauver();
   nouvellePiece();
@@ -640,15 +653,18 @@ function arreterDechiffrage() {
 
 function preparerPiece() {
   arreterDechiffrage();
-  dech.phase = 'preparation';
+  dech.phase = ‘preparation’;
   const { piece } = dech;
-  $('dech-niveau').textContent = `${NOMS_MAIN[dech.main]} · niveau ${dech.niveau} · ${dech.bpm} à la noire${dech.rejoue ? ' · rejouée, ne compte pas' : ''}`;
+  $(‘dech-niveau’).textContent = `${NOMS_MAIN[dech.main]} · niveau ${dech.niveau} · ${dech.bpm} à la noire${dech.rejoue ? ‘ · rejouée, ne compte pas’ : ‘’}`;
   montrerChoixMain(true);
-  $('dech-partition').innerHTML = partitionSvg(piece);
-  $('dech-correction').hidden = true;
-  const depart = `${nomFr(piece.notes[0].note)}${piece.notes[0].octave}`;
-  let reste = 45;
-  const texte = () => `${nomFr(piece.tonique)} majeur · ${piece.temps} temps · départ sur ${depart}. Repère le passage difficile et décide de ne pas t’arrêter. ${reste} s`;
+  $(‘dech-partition’).innerHTML = partitionSvg(piece);
+  $(‘dech-correction’).hidden = true;
+  const nomNote = (n) => `${nomFr(n.note)}${n.octave}`;
+  const depart = dech.main === ‘ensemble’
+    ? `départ : ${nomNote(piece.droite[0])} à droite, ${nomNote(piece.gauche[0])} à gauche`
+    : `départ sur ${nomNote(piece.notes[0])}`;
+  let reste = dech.main === ‘ensemble’ ? 60 : 45;
+  const texte = () => `${nomFr(piece.tonique)} majeur · ${piece.temps} temps · ${depart}. Repère le passage difficile et décide de ne pas t’arrêter. ${reste} s`;
   $('dech-etat').textContent = texte();
   const minuteur = setInterval(() => {
     // Minuteur d'une préparation abandonnée (autre pièce, écran quitté) : il s'arrête lui-même.
@@ -697,7 +713,18 @@ async function jouerPiece() {
     }
   }
   dech.origine = origine;
-  ecoute.demarrer(undefined, { fMin: REGLES_ECOUTE.fMin[dech.main] });
+  if (dech.main === 'ensemble') {
+    // Mains ensemble : spectre (fftSize 4096) et harmoniques des notes candidates à chaque trame.
+    const candidats = candidatsPiece(piece);
+    dech.candidats = candidats;
+    ecoute.demarrer(undefined, {
+      fftSize: 4096,
+      fabriquer: (buf, db, sampleRate, fftSize, tMs) => {
+        dech.largeurHz = sampleRate / fftSize;
+        return trameEnsemble(buf, amplitudesDeDb(db), { sampleRate, fftSize }, candidats, tMs);
+      },
+    });
+  } else ecoute.demarrer(undefined, { fMin: REGLES_ECOUTE.fMin[dech.main] });
   const geo = geometriePartition(piece);
   const curseur = $('dech-partition').querySelector('.curseur');
   const pulsation = $('dech-pulsation');
@@ -713,7 +740,7 @@ async function jouerPiece() {
       const c = curseurA(geo, (Math.min(t, dureeMs) / battement) * U);
       for (const [k, v] of [['x1', c.x], ['x2', c.x], ['y1', c.y1], ['y2', c.y2], ['visibility', 'visible']]) curseur.setAttribute(k, v);
     }
-    if (t > dureeMs + 800) { terminerPiece(); return; }
+    if (t > dureeMs + 800) { if (dech.main === 'ensemble') terminerPieceEnsemble(); else terminerPiece(); return; }
     dech.raf = requestAnimationFrame(boucle);
   };
   dech.raf = requestAnimationFrame(boucle);
@@ -781,6 +808,69 @@ function terminerPiece() {
     boutonDech('Copier le détail pour Claude', copierDiagnostic, 'btn-lien'));
 }
 
+// Mains ensemble : correction indicative ; l'élève confirme le verdict avant qu'il compte.
+function terminerPieceEnsemble() {
+  const trames = ecoute.arreter().map((x) => ({ ...x, tMs: x.tMs - dech.origine }));
+  arreterDechiffrage();
+  dech.phase = 'correction';
+  montrerChoixMain(true);
+  const r = verifierEnsemble(dech.piece, trames, { bpm: dech.bpm, candidats: dech.candidats, largeurHz: dech.largeurHz });
+  // Trames compactées : [temps ms, énergie × 1000, puis pour chaque candidat la moyenne de ses harmoniques × 10⁴].
+  const moyenneH = (h, c) => { let s = 0; for (let k = 0; k < HARMONIQUES; k++) s += h[c * HARMONIQUES + k]; return s / HARMONIQUES; };
+  dech.diagnostic = JSON.stringify({
+    main: 'ensemble', niveau: dech.niveau, graine: dech.graine, bpm: dech.bpm, latenceMs: r.latenceMs, propose: r.propose, candidats: dech.candidats,
+    notes: ['droite', 'gauche'].flatMap((main) => dech.piece[main].map((n, i) => [main, n.midi, r.notes[main][i].etat, r.notes[main][i].montee, r.notes[main][i].voisins])),
+    trames: trames.map((x) => [Math.round(x.tMs), Math.round(x.rms * 1000), ...dech.candidats.map((_, c) => Math.round(moyenneH(x.h, c) * 1e4))]),
+  });
+  $('dech-partition').innerHTML = partitionSvg(dech.piece, { marques: r.notes });
+  $('dech-etat').textContent = '';
+  const zone = $('dech-correction');
+  zone.replaceChildren();
+  zone.hidden = false;
+  zone.className = `correction ${r.propose === 'reussi' ? 'juste' : r.propose === 'pasEncore' ? 'faux' : ''}`;
+  const boutonsFin = () => actionsDech(
+    boutonDech('Suivante', nouvellePiece, 'btn-principal'),
+    boutonDech('▶ Écouter la pièce', ecouterPiece),
+    boutonDech(r.compte ? '↻ Réessayer (sans compter)' : '↻ Réessayer', () => { dech.rejoue = r.compte; preparerPiece(); }),
+    boutonDech('Copier le détail pour Claude', copierDiagnostic, 'btn-lien'));
+  if (!r.compte) {
+    zone.append(
+      el('p', { class: 'explication' }, r.rienEntendu
+        ? 'Je n'ai rien entendu : rapproche le téléphone du piano ou monte le volume, puis réessaie.'
+        : 'Beaucoup de sons parasites : je ne peux pas corriger cette fois. Coupe le clic sonore ou le bruit autour, puis réessaie.'),
+      el('p', { class: 'boite-info' }, 'Cette pièce ne compte pas.'));
+    boutonsFin();
+    return;
+  }
+  const jugees = r.total - r.douteuses;
+  const arrets = r.arrets.length ? `arrêt${r.arrets.length > 1 ? 's' : ''} mesure${r.arrets.length > 1 ? 's' : ''} ${r.arrets.join(', ')}` : 'aucun arrêt';
+  zone.append(
+    el('div', { class: 'verdict' },
+      el('span', {}, r.propose === 'reussi' ? 'Réussie ?' : r.propose === 'pasEncore' ? 'Pas encore ?' : 'Je n'ai pas bien entendu : à toi de juger'),
+      el('span', {}, `${r.justes}/${jugees} justes`)),
+    el('p', { class: 'explication' }, `${r.douteuses} douteuse${r.douteuses > 1 ? 's' : ''} · régularité : ${r.ecartMedianMs === null ? '–' : `${r.ecartMedianMs} ms d'écart médian`} · ${arrets}.`),
+    el('p', { class: 'sous' }, 'Vert : juste · orange : décalée · rouge : fausse probable · gris « ? » : douteuse (le micro ne sait pas) · pointillé : manquée.'));
+  if (dech.rejoue) {
+    zone.append(el('p', { class: 'boite-info' }, 'Pièce rejouée : elle ne compte pas.'));
+    boutonsFin();
+    return;
+  }
+  // Rien n'est enregistré avant le choix de l'élève.
+  const choix = el('div', { class: 'confirmation' });
+  const confirmer = (reussi) => {
+    const e = enregistrerPiece(etat, { main: 'ensemble', niveau: dech.niveau, graine: dech.graine, bpm: dech.bpm, resultat: { ...r, reussi } }, Date.now());
+    sauver();
+    choix.replaceWith(el('p', { class: 'boite-info' }, `${reussi ? 'Réussie' : 'Pas encore'} : prochaine pièce à ${e.bpmApres} à la noire.`));
+    if (e.debloque) zone.append(el('div', { class: 'debloque' }, `Niveau débloqué : Déchiffrage mains ensemble, niveau ${e.debloque}`));
+    boutonsFin();
+  };
+  choix.append(
+    boutonDech('✓ Réussie', () => confirmer(true), r.propose === 'reussi' ? 'btn-principal' : 'btn-second'),
+    boutonDech('✗ Pas encore', () => confirmer(false), r.propose === 'pasEncore' ? 'btn-principal' : 'btn-second'));
+  zone.append(choix);
+  actionsDech(boutonDech('▶ Écouter la pièce', ecouterPiece), boutonDech('Copier le détail pour Claude', copierDiagnostic, 'btn-lien'));
+}
+
 async function copierDiagnostic(ev) {
   const bouton = ev.currentTarget;
   try { await navigator.clipboard.writeText(dech.diagnostic); bouton.textContent = 'Détail copié ✓ : colle-le à Claude'; }
@@ -789,7 +879,9 @@ async function copierDiagnostic(ev) {
 
 function ecouterPiece() {
   lecteur ||= creerLecteur();
-  if (lecteur) lecteur.jouer(sequencePiece(dech.piece, dech.bpm));
+  if (!lecteur) return;
+  if (dech.main === 'ensemble') lecteur.jouerNotes(notesAJouer(dech.piece, dech.bpm));
+  else lecteur.jouer(sequencePiece(dech.piece, dech.bpm));
 }
 
 function quitterDechiffrage() {
