@@ -746,11 +746,47 @@ async function jouerPiece() {
   dech.raf = requestAnimationFrame(boucle);
 }
 
-function terminerPiece() {
+function arreterCapture() {
   const trames = ecoute.arreter().map((x) => ({ ...x, tMs: x.tMs - dech.origine }));
   arreterDechiffrage();
   dech.phase = 'correction';
   montrerChoixMain(true);
+  return trames;
+}
+
+function ouvrirZoneCorrection(classe) {
+  $('dech-etat').textContent = '';
+  const zone = $('dech-correction');
+  zone.replaceChildren();
+  zone.hidden = false;
+  zone.className = `correction ${classe}`;
+  return zone;
+}
+
+function ajouterNeComptePas(zone, r) {
+  zone.append(
+    el('p', { class: 'explication' }, r.rienEntendu
+      ? 'Je n’ai rien entendu : rapproche le téléphone du piano ou monte le volume, puis réessaie.'
+      : 'Beaucoup de sons parasites : je ne peux pas corriger cette fois. Coupe le clic sonore ou le bruit autour, puis réessaie.'),
+    el('p', { class: 'boite-info' }, 'Cette pièce ne compte pas.'));
+}
+
+function texteArrets(arrets) {
+  return arrets.length ? `arrêt${arrets.length > 1 ? 's' : ''} mesure${arrets.length > 1 ? 's' : ''} ${arrets.join(', ')}` : 'aucun arrêt';
+}
+
+function boutonsFinDech(r) {
+  // Une pièce qui n'a pas compté (rien entendu, parasites) n'avait pas été enregistrée :
+  // la rejouer n'est pas un « rejeu » au sens de la progression.
+  actionsDech(
+    boutonDech('Suivante', nouvellePiece, 'btn-principal'),
+    boutonDech('▶ Écouter la pièce', ecouterPiece),
+    boutonDech(r.compte ? '↻ Réessayer (sans compter)' : '↻ Réessayer', () => { if (r.compte) dech.rejoue = true; preparerPiece(); }),
+    boutonDech('Copier le détail pour Claude', copierDiagnostic, 'btn-lien'));
+}
+
+function terminerPiece() {
+  const trames = arreterCapture();
   const attendues = notesAttendues(dech.piece, dech.bpm);
   const joues = detecterAttaques(trames);
   const r = aligner(attendues, joues, { bpm: dech.bpm });
@@ -766,19 +802,11 @@ function terminerPiece() {
   });
   const marques = r.notes.map((n) => ({ etat: n.etat, joue: n.etat === 'fausse' ? nomMidi(n.jouee) : null }));
   $('dech-partition').innerHTML = partitionSvg(dech.piece, { marques, enTrop: r.enTrop });
-  $('dech-etat').textContent = '';
-  const zone = $('dech-correction');
-  zone.replaceChildren();
-  zone.hidden = false;
-  zone.className = `correction ${r.reussi ? 'juste' : 'faux'}`;
+  const zone = ouvrirZoneCorrection(r.reussi ? 'juste' : 'faux');
   if (!r.compte) {
-    zone.append(
-      el('p', { class: 'explication' }, r.rienEntendu
-        ? 'Je n’ai rien entendu : rapproche le téléphone du piano ou monte le volume, puis réessaie.'
-        : 'Beaucoup de sons parasites : je ne peux pas corriger cette fois. Coupe le clic sonore ou le bruit autour, puis réessaie.'),
-      el('p', { class: 'boite-info' }, 'Cette pièce ne compte pas.'));
+    ajouterNeComptePas(zone, r);
   } else {
-    const arrets = r.arrets.length ? `arrêt${r.arrets.length > 1 ? 's' : ''} mesure${r.arrets.length > 1 ? 's' : ''} ${r.arrets.join(', ')}` : 'aucun arrêt';
+    const arrets = texteArrets(r.arrets);
     const trop = r.enTrop.length ? ` · ${r.enTrop.length} note${r.enTrop.length > 1 ? 's' : ''} en trop` : '';
     const decalees = r.decalees > 0 ? ` · ${r.decalees} note${r.decalees > 1 ? 's' : ''} décalée${r.decalees > 1 ? 's' : ''}` : '';
     zone.append(
@@ -796,24 +824,12 @@ function terminerPiece() {
       if (e.debloque) zone.append(el('div', { class: 'debloque' }, `Niveau débloqué : Déchiffrage ${NOMS_MAIN[dech.main].toLowerCase()}, niveau ${e.debloque}`));
     }
   }
-  // Une pièce qui n'a pas compté (rien entendu, parasites) n'avait pas été enregistrée :
-  // la rejouer n'est pas un « rejeu » au sens de la progression.
-  const boutonRejouer = r.compte
-    ? boutonDech('↻ Réessayer (sans compter)', () => { dech.rejoue = true; preparerPiece(); })
-    : boutonDech('↻ Réessayer', preparerPiece);
-  actionsDech(
-    boutonDech('Suivante', nouvellePiece, 'btn-principal'),
-    boutonDech('▶ Écouter la pièce', ecouterPiece),
-    boutonRejouer,
-    boutonDech('Copier le détail pour Claude', copierDiagnostic, 'btn-lien'));
+  boutonsFinDech(r);
 }
 
 // Mains ensemble : correction indicative ; l'élève confirme le verdict avant qu'il compte.
 function terminerPieceEnsemble() {
-  const trames = ecoute.arreter().map((x) => ({ ...x, tMs: x.tMs - dech.origine }));
-  arreterDechiffrage();
-  dech.phase = 'correction';
-  montrerChoixMain(true);
+  const trames = arreterCapture();
   const r = verifierEnsemble(dech.piece, trames, { bpm: dech.bpm, candidats: dech.candidats, largeurHz: dech.largeurHz });
   // Trames compactées : [temps ms, énergie × 1000, puis pour chaque candidat la moyenne de ses harmoniques × 10⁴].
   const moyenneH = (h, c) => { let s = 0; for (let k = 0; k < HARMONIQUES; k++) s += h[c * HARMONIQUES + k]; return s / HARMONIQUES; };
@@ -823,27 +839,14 @@ function terminerPieceEnsemble() {
     trames: trames.map((x) => [Math.round(x.tMs), Math.round(x.rms * 1000), ...dech.candidats.map((_, c) => Math.round(moyenneH(x.h, c) * 1e4))]),
   });
   $('dech-partition').innerHTML = partitionSvg(dech.piece, { marques: r.notes });
-  $('dech-etat').textContent = '';
-  const zone = $('dech-correction');
-  zone.replaceChildren();
-  zone.hidden = false;
-  zone.className = `correction ${r.propose === 'reussi' ? 'juste' : r.propose === 'pasEncore' ? 'faux' : ''}`;
-  const boutonsFin = () => actionsDech(
-    boutonDech('Suivante', nouvellePiece, 'btn-principal'),
-    boutonDech('▶ Écouter la pièce', ecouterPiece),
-    boutonDech(r.compte ? '↻ Réessayer (sans compter)' : '↻ Réessayer', () => { if (r.compte) dech.rejoue = true; preparerPiece(); }),
-    boutonDech('Copier le détail pour Claude', copierDiagnostic, 'btn-lien'));
+  const zone = ouvrirZoneCorrection(r.propose === 'reussi' ? 'juste' : r.propose === 'pasEncore' ? 'faux' : '');
   if (!r.compte) {
-    zone.append(
-      el('p', { class: 'explication' }, r.rienEntendu
-        ? 'Je n’ai rien entendu : rapproche le téléphone du piano ou monte le volume, puis réessaie.'
-        : 'Beaucoup de sons parasites : je ne peux pas corriger cette fois. Coupe le clic sonore ou le bruit autour, puis réessaie.'),
-      el('p', { class: 'boite-info' }, 'Cette pièce ne compte pas.'));
-    boutonsFin();
+    ajouterNeComptePas(zone, r);
+    boutonsFinDech(r);
     return;
   }
   const jugees = r.total - r.douteuses;
-  const arrets = r.arrets.length ? `arrêt${r.arrets.length > 1 ? 's' : ''} mesure${r.arrets.length > 1 ? 's' : ''} ${r.arrets.join(', ')}` : 'aucun arrêt';
+  const arrets = texteArrets(r.arrets);
   zone.append(
     el('div', { class: 'verdict' },
       el('span', {}, r.propose === 'reussi' ? 'Réussie ?' : r.propose === 'pasEncore' ? 'Pas encore ?' : 'Je n’ai pas bien entendu : à toi de juger'),
@@ -852,7 +855,7 @@ function terminerPieceEnsemble() {
     el('p', { class: 'sous' }, 'Vert : juste · orange : décalée · rouge : fausse probable · gris « ? » : douteuse (le micro ne sait pas) · pointillé : manquée.'));
   if (dech.rejoue) {
     zone.append(el('p', { class: 'boite-info' }, 'Pièce rejouée : elle ne compte pas.'));
-    boutonsFin();
+    boutonsFinDech(r);
     return;
   }
   // Rien n'est enregistré avant le choix de l'élève.
@@ -862,7 +865,7 @@ function terminerPieceEnsemble() {
     sauver();
     choix.replaceWith(el('p', { class: 'boite-info' }, `${reussi ? 'Réussie' : 'Pas encore'} : prochaine pièce à ${e.bpmApres} à la noire.`));
     if (e.debloque) zone.append(el('div', { class: 'debloque' }, `Niveau débloqué : Déchiffrage mains ensemble, niveau ${e.debloque}`));
-    boutonsFin();
+    boutonsFinDech(r);
   };
   choix.append(
     boutonDech('✓ Réussie', () => confirmer(true), r.propose === 'reussi' ? 'btn-principal' : 'btn-second'),
