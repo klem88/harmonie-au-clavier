@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { trameDe, detecterAttaques, aligner, creerEcoute } from '../src/ecoute.js';
+import { trameDe, detecterAttaques, aligner, creerEcoute, REGLES_ECOUTE } from '../src/ecoute.js';
 
 const hz = (m) => 440 * 2 ** ((m - 69) / 12);
 
@@ -41,6 +41,22 @@ test('trameDe : tampon de 1024 echantillons a 48 kHz (fftSize allege)', () => {
   for (let i = 0; i < n; i++) buf[i] = [1, 0.5, 0.3, 0.2].reduce((s, a, k) => s + 0.1 * a * Math.sin((2 * Math.PI * hz(m) * (k + 1) * i) / sr), 0);
   const t = trameDe(buf, sr, 0);
   assert.ok(Math.abs(t.f0 - hz(m)) / hz(m) < 0.01, `midi ${m} : f0 ${t.f0}`);
+});
+
+test('trameDe : main gauche, notes graves jusqu a do3 avec la plage abaissee', () => {
+  const sr = 48000; const n = 1024;
+  for (const m of [48, 50, 53, 55]) {
+    const buf = new Float32Array(n);
+    for (let i = 0; i < n; i++) buf[i] = [1, 0.5, 0.3, 0.2].reduce((s, a, k) => s + 0.1 * a * Math.sin((2 * Math.PI * hz(m) * (k + 1) * i) / sr), 0);
+    const t = trameDe(buf, sr, 0, { fMin: REGLES_ECOUTE.fMin.gauche });
+    assert.ok(Math.abs(t.f0 - hz(m)) / hz(m) < 0.01, `midi ${m} : f0 ${t.f0}`);
+  }
+  assert.equal(REGLES_ECOUTE.fMin.droite, 180, 'main droite inchangée');
+});
+
+test('notes graves simulees (main gauche) : une attaque par note, a la bonne hauteur', () => {
+  const notes = [300, 800, 1300, 1800].map((tMs, i) => ({ tMs, midi: [48, 50, 52, 53][i] }));
+  assert.deepEqual(detecterAttaques(simuler(notes)).map((x) => x.midi), [48, 50, 52, 53]);
 });
 
 test('notes detachees : une attaque par note, a la bonne hauteur', () => {

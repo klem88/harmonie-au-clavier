@@ -1,7 +1,7 @@
-// Partition d'une pièce de déchiffrage : clé de sol, hauteurs et rythmes, plusieurs mesures sur
+// Partition d'une pièce de déchiffrage : clé de sol ou de fa, hauteurs et rythmes, plusieurs mesures sur
 // plusieurs lignes, et le résultat de la correction coloré sur chaque note. Pur, sans DOM.
 
-import { positionPortee, cleSol, POS_DIESES, POS_BEMOLS } from './portee.js';
+import { positionPortee, cleSol, cleFa, POS_DIESES, POS_BEMOLS } from './portee.js';
 import { U } from './rythme.js';
 
 const PX_UNITE = 3.5;       // largeur d'une unité de temps (12 par temps)
@@ -10,12 +10,12 @@ const FIN_MESURE = 10;      // après la dernière
 const DEMI_INTERLIGNE = 5;
 const HAUT_SYSTEME = 130;   // hauteur d'une ligne de partition
 const BAS_SYSTEME = 100;    // y de la ligne du bas de la portée, dans une ligne
-const X_ARMURE = 56;
+const X_ARMURE = { sol: 56, fa: 66 }; // la clé de fa, avec ses deux points, est plus large
 
 export function geometriePartition(piece, { mesuresParLigne = 2 } = {}) {
   const unitesMesure = piece.temps * U;
   const largeurMesure = MARGE_MESURE + unitesMesure * PX_UNITE + FIN_MESURE;
-  const entete = X_ARMURE + Math.abs(piece.armure) * 9 + 4;
+  const entete = X_ARMURE[piece.cle || 'sol'] + Math.abs(piece.armure) * 9 + 4;
   const systemes = [];
   for (let l = 0; l * mesuresParLigne < piece.mesures; l++) {
     const x0 = entete + (l === 0 ? 24 : 0); // la première ligne porte le chiffrage
@@ -46,14 +46,15 @@ export function partitionSvg(piece, { mesuresParLigne = 2, marques = [], enTrop 
   const geo = geometriePartition(piece, { mesuresParLigne });
   const yDePos = (ligne, p) => geo.basPortee(ligne) - p * DEMI_INTERLIGNE;
   const parts = [];
-  const posArm = (piece.armure > 0 ? POS_DIESES : POS_BEMOLS).sol;
+  const cle = piece.cle || 'sol';
+  const posArm = (piece.armure > 0 ? POS_DIESES : POS_BEMOLS)[cle];
   for (const s of geo.systemes) {
     const bas = geo.basPortee(s.ligne);
     const fin = s.mesures.at(-1).x1;
     for (let k = 0; k < 5; k++) parts.push(`<line class="ligne" x1="6" y1="${bas - 10 * k}" x2="${fin}" y2="${bas - 10 * k}" stroke-width="1"/>`);
-    parts.push(`<g transform="translate(0 ${bas - 90})">${cleSol()}</g>`);
+    parts.push(`<g transform="translate(0 ${bas - 90})">${cle === 'fa' ? cleFa() : cleSol()}</g>`);
     for (let i = 0; i < Math.abs(piece.armure); i++) {
-      parts.push(`<text class="alteration" x="${X_ARMURE + i * 9}" y="${yDePos(s.ligne, posArm[i]) + 5}" text-anchor="middle">${piece.armure > 0 ? '♯' : '♭'}</text>`);
+      parts.push(`<text class="alteration" x="${X_ARMURE[cle] + i * 9}" y="${yDePos(s.ligne, posArm[i]) + 5}" text-anchor="middle">${piece.armure > 0 ? '♯' : '♭'}</text>`);
     }
     if (s.ligne === 0) {
       const xc = geo.entete + 10;
@@ -71,7 +72,7 @@ export function partitionSvg(piece, { mesuresParLigne = 2, marques = [], enTrop 
   const notes = piece.notes;
   const infos = notes.map((x) => {
     const { x: px, ligne } = geo.ou(x.pos);
-    const p = positionPortee(x.note, x.octave, 'sol');
+    const p = positionPortee(x.note, x.octave, cle);
     return { px, ligne, p, y: yDePos(ligne, p) };
   });
   // croches liées par deux dans un même temps

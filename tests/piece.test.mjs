@@ -72,3 +72,25 @@ test('melodieValide refuse deux sauts de suite dans le même sens et le triton',
   assert.equal(melodieValide([3, 6], [65, 71], 4), false);
   assert.equal(melodieValide([0, 3], [60, 65], 2), false, 'saut trop grand pour le niveau');
 });
+
+test('main droite par défaut : clé de sol', () => {
+  const p = genererPiece(2, 42);
+  assert.equal(p.main, 'droite');
+  assert.equal(p.cle, 'sol');
+  assert.deepEqual(genererPiece(2, 42, { main: 'droite' }), p);
+});
+
+test('main gauche : même pièce une octave plus bas, en clé de fa, autour de do3', () => {
+  for (const niveau of [1, 2, 3]) {
+    for (const g of GRAINES.slice(0, 200)) {
+      const d = genererPiece(niveau, g);
+      const p = genererPiece(niveau, g, { main: 'gauche' });
+      assert.equal(p.main, 'gauche');
+      assert.equal(p.cle, 'fa');
+      assert.deepEqual(p.notes.map((n) => n.midi), d.notes.map((n) => n.midi - 12));
+      assert.deepEqual(p.notes.map((n) => n.octave), d.notes.map((n) => n.octave - 1));
+      assert.deepEqual(p.notes.map((n) => [n.pos, n.duree]), d.notes.map((n) => [n.pos, n.duree]));
+      for (const n of p.notes) assert.ok(n.midi >= 48 && n.midi <= (niveau === 3 ? 69 : 62), `niveau ${niveau} graine ${g} : ${n.midi} hors registre`);
+    }
+  }
+});

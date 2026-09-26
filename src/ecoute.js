@@ -7,16 +7,19 @@ import { U } from './rythme.js';
 
 export const REGLES_ECOUTE = {
   seuilRms: 0.01, rapport: 1.5, refractaireMs: 90, fenetreHauteur: [40, 200],
+  // Plage basse de la hauteur (Hz) : main gauche jusqu'à do3 (131 Hz) ; la main droite garde 180 Hz,
+  // une plage plus large n'y ajouterait que des erreurs d'octave.
+  fMin: { droite: 180, gauche: 100 },
   toleranceDecaleMs: 120, arretTemps: 0.75, tauxReussite: 0.85, decaleesMax: 0.2,
 };
 
 function medianeEcoute(t) { const s = [...t].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
 
-// Main droite seulement : 180–1000 Hz suffit et allège le calcul sur téléphone.
-export function trameDe(buf, sampleRate, tMs) {
+// Jusqu'à 1000 Hz ; le bas de la plage dépend de la main (REGLES_ECOUTE.fMin), plus haut = calcul plus léger.
+export function trameDe(buf, sampleRate, tMs, { fMin = REGLES_ECOUTE.fMin.droite } = {}) {
   let s = 0;
   for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
-  return { tMs, rms: Math.sqrt(s / buf.length), f0: detecterHauteur(buf, sampleRate, { seuilRms: REGLES_ECOUTE.seuilRms, fMin: 180, fMax: 1000 }) };
+  return { tMs, rms: Math.sqrt(s / buf.length), f0: detecterHauteur(buf, sampleRate, { seuilRms: REGLES_ECOUTE.seuilRms, fMin, fMax: 1000 }) };
 }
 
 // Une attaque = un saut d'énergie, ou (legato) une nouvelle hauteur stable sans saut d'énergie.
@@ -186,13 +189,13 @@ export function creerEcoute({ getUserMedia = globalThis.navigator?.mediaDevices?
       }
       return ouverture;
     },
-    demarrer(onTrame = () => {}) {
+    demarrer(onTrame = () => {}, { fMin } = {}) {
       this.arreter();
       trames = [];
       const buf = new Float32Array(analyseur.fftSize);
       minuteur = setInterval(() => {
         analyseur.getFloatTimeDomainData(buf);
-        const t = trameDe(buf, ctx.sampleRate, performance.now());
+        const t = trameDe(buf, ctx.sampleRate, performance.now(), { fMin });
         trames.push(t);
         onTrame(t);
       }, 15);

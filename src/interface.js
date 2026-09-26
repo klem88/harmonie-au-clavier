@@ -28,6 +28,7 @@ let micro = null;   // ouvert à la première carte de chant (demande d'autorisa
 // le chant est alors mis de côté (ni séance, ni cartes dues) plutôt que de bloquer la séance sur une erreur.
 const politique = document.permissionsPolicy || document.featurePolicy;
 const MICRO_PERMIS = politique?.allowsFeature ? politique.allowsFeature('microphone') : globalThis.top === globalThis.self;
+const NOMS_MAIN = { droite: 'Main droite', gauche: 'Main gauche' };
 const NOMS_CLASSE = ['do', 'do♯', 'ré', 'mi♭', 'mi', 'fa', 'fa♯', 'sol', 'la♭', 'la', 'si♭', 'si'];
 let dech = null;       // pièce de déchiffrage en cours
 let ecoute = null;     // micro du déchiffrage, ouvert à la première pièce jouée
@@ -124,15 +125,18 @@ function rendreAccueil() {
       el('span', { class: 'detail manque' }, sansMicro ? 'Micro indisponible dans la page claude.ai : chant mis de côté' : muet ? 'Mise de côté en mode silencieux' : manque)));
   }
   // Déchiffrage : pas de cartes, sa propre carte d'accueil
+  // Déchiffrage : la carte montre la main choisie en dernier ; l'autre main en une ligne.
   const dd = etat.dechiffrage;
-  const bloque = etatDeblocageDechiffrage(etat);
+  const main = dd.main;
+  const autre = main === 'droite' ? 'gauche' : 'droite';
+  const bloque = etatDeblocageDechiffrage(etat, main);
   const muetJ = !MICRO_PERMIS || silence;
-  const nbPieces = dd.historique.length;
+  const nbPieces = dd.historique.filter((h) => (h.main ?? 'droite') === main).length;
   conteneur.append(el('button', { class: `dim${muetJ ? ' inactif' : ''}`, type: 'button', disabled: muetJ ? '' : undefined, onclick: ouvrirDechiffrage },
-    el('span', { class: 'nom' }, 'Déchiffrage au piano'),
-    el('span', { class: 'niveau' }, `niv. ${dd.niveau}`),
+    el('span', { class: 'nom' }, `Déchiffrage · ${NOMS_MAIN[main]}`),
+    el('span', { class: 'niveau' }, `niv. ${dd[main].niveau}`),
     el('span', { class: 'barre' }, el('i', { style: `width:${bloque ? pourcent(bloque.reussites, bloque.cible) : 100}%` })),
-    el('span', { class: 'detail' }, `${nbPieces} pièce${nbPieces > 1 ? 's' : ''} jouée${nbPieces > 1 ? 's' : ''} · ${dd.bpm[dd.niveau]} à la noire`),
+    el('span', { class: 'detail' }, `${nbPieces} pièce${nbPieces > 1 ? 's' : ''} jouée${nbPieces > 1 ? 's' : ''} · ${dd[main].bpm[dd[main].niveau]} à la noire · ${NOMS_MAIN[autre]} : niv. ${dd[autre].niveau}`),
     el('span', { class: 'detail manque' }, !MICRO_PERMIS ? 'Micro indisponible ici : déchiffrage mis de côté'
       : silence ? 'Mise de côté en mode silencieux'
         : bloque ? `Niv. ${bloque.suivant} : ${bloque.reussites}/${bloque.cible} réussites sur les ${bloque.fenetre} dernières pièces` : 'Tous les niveaux ouverts')));
@@ -524,16 +528,22 @@ function rendreProgression() {
     zone.append(bloc);
   }
   const dd = etat.dechiffrage;
-  const bloque = etatDeblocageDechiffrage(etat);
-  const recentes = dd.historique.slice(-5).reverse();
+  const recentes = dd.historique.slice(-6).reverse();
   const date = (t) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  const parcours = (main) => {
+    const p = dd[main];
+    const bloque = etatDeblocageDechiffrage(etat, main);
+    return el('p', { class: 'sous' }, el('b', {}, `${NOMS_MAIN[main]} (clé de ${main === 'droite' ? 'sol' : 'fa'}) · niveau ${p.niveau}`),
+      ` · tempo ${Object.entries(p.bpm).map(([n, v]) => `niv. ${n} : ${v}`).join(', ')}. `,
+      bloque ? `Pour ouvrir le niveau ${bloque.suivant} : ${bloque.reussites}/${bloque.cible} réussites sur les ${bloque.fenetre} dernières pièces (${bloque.jouees} jouée${bloque.jouees > 1 ? 's' : ''}).` : 'Tous les niveaux sont ouverts.');
+  };
   $('prog-dechiffrage').replaceChildren(
     el('h3', {}, 'Déchiffrage au piano'),
-    el('p', { class: 'sous' }, `Niveau ${dd.niveau} · tempo ${Object.entries(dd.bpm).map(([n, v]) => `niv. ${n} : ${v}`).join(', ')}`),
-    el('p', { class: 'sous' }, bloque ? `Pour ouvrir le niveau ${bloque.suivant} : ${bloque.reussites}/${bloque.cible} réussites sur les ${bloque.fenetre} dernières pièces (${bloque.jouees} jouée${bloque.jouees > 1 ? 's' : ''}).` : 'Tous les niveaux sont ouverts.'),
+    parcours('droite'),
+    parcours('gauche'),
     recentes.length
-      ? el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'Date'), el('th', {}, 'Niv.'), el('th', {}, 'Justes'), el('th', {}, 'Tempo'))),
-        el('tbody', {}, ...recentes.map((h) => el('tr', {}, el('td', {}, date(h.date)), el('td', {}, String(h.niveau)), el('td', {}, `${h.justes}/${h.total}${h.reussi ? ' ✓' : ''}`), el('td', {}, String(h.bpm))))))
+      ? el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'Date'), el('th', {}, 'Main'), el('th', {}, 'Niv.'), el('th', {}, 'Justes'), el('th', {}, 'Tempo'))),
+        el('tbody', {}, ...recentes.map((h) => el('tr', {}, el('td', {}, date(h.date)), el('td', {}, (h.main ?? 'droite') === 'gauche' ? 'MG' : 'MD'), el('td', {}, String(h.niveau)), el('td', {}, `${h.justes}/${h.total}${h.reussi ? ' ✓' : ''}`), el('td', {}, String(h.bpm))))))
       : el('p', { class: 'sous' }, 'Aucune pièce jouée pour l’instant.'),
   );
   $('btn-exporter').textContent = 'Copier ma progression';
@@ -599,9 +609,23 @@ function ouvrirDechiffrage() {
 
 function nouvellePiece() {
   const d = etat.dechiffrage;
+  const main = d.main;
+  const { niveau, bpm } = d[main];
   const graine = Math.floor(Math.random() * 2 ** 31);
-  dech = { piece: genererPiece(d.niveau, graine), graine, niveau: d.niveau, bpm: d.bpm[d.niveau], rejoue: false, phase: null, minuteur: null, raf: null, origine: 0 };
+  dech = { piece: genererPiece(niveau, graine, { main }), graine, main, niveau, bpm: bpm[niveau], rejoue: false, phase: null, minuteur: null, raf: null, origine: 0 };
   preparerPiece();
+}
+
+// Choix de la main : visible en préparation et après la correction, caché pendant le jeu.
+function montrerChoixMain(visible) {
+  $('dech-main').hidden = !visible;
+  for (const b of $('dech-main').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.main === etat.dechiffrage.main));
+}
+function choisirMain(main) {
+  if (!dech || dech.phase === 'jeu' || etat.dechiffrage.main === main) return;
+  etat.dechiffrage.main = main;
+  sauver();
+  nouvellePiece();
 }
 
 function arreterDechiffrage() {
@@ -617,7 +641,8 @@ function preparerPiece() {
   arreterDechiffrage();
   dech.phase = 'preparation';
   const { piece } = dech;
-  $('dech-niveau').textContent = `Niveau ${dech.niveau} · ${dech.bpm} à la noire${dech.rejoue ? ' · rejouée, ne compte pas' : ''}`;
+  $('dech-niveau').textContent = `${NOMS_MAIN[dech.main]} · niveau ${dech.niveau} · ${dech.bpm} à la noire${dech.rejoue ? ' · rejouée, ne compte pas' : ''}`;
+  montrerChoixMain(true);
   $('dech-partition').innerHTML = partitionSvg(piece);
   $('dech-correction').hidden = true;
   const depart = `${nomFr(piece.notes[0].note)}${piece.notes[0].octave}`;
@@ -639,6 +664,7 @@ function preparerPiece() {
 async function jouerPiece() {
   arreterDechiffrage();
   dech.phase = 'jeu';
+  montrerChoixMain(false);
   actionsDech();
   ecoute ||= creerEcoute();
   if (!ecoute) { $('dech-etat').textContent = 'Micro indisponible sur cet appareil.'; actionsDech(boutonDech('Retour à la préparation', preparerPiece)); return; }
@@ -665,7 +691,7 @@ async function jouerPiece() {
     }
   }
   dech.origine = origine;
-  ecoute.demarrer();
+  ecoute.demarrer(undefined, { fMin: REGLES_ECOUTE.fMin[dech.main] });
   const geo = geometriePartition(piece);
   const curseur = $('dech-partition').querySelector('.curseur');
   const pulsation = $('dech-pulsation');
@@ -691,13 +717,14 @@ function terminerPiece() {
   const trames = ecoute.arreter().map((x) => ({ ...x, tMs: x.tMs - dech.origine }));
   arreterDechiffrage();
   dech.phase = 'correction';
+  montrerChoixMain(true);
   const attendues = notesAttendues(dech.piece, dech.bpm);
   const joues = detecterAttaques(trames);
   const r = aligner(attendues, joues, { bpm: dech.bpm });
   // Détail de ce que l'app a entendu, à coller à Claude pour régler la détection.
   // Trames compactées : [temps ms, énergie × 1000, hauteur MIDI × 10 ou null].
   dech.diagnostic = JSON.stringify({
-    niveau: dech.niveau, graine: dech.graine, bpm: dech.bpm, latenceMs: r.latenceMs,
+    main: dech.main, niveau: dech.niveau, graine: dech.graine, bpm: dech.bpm, latenceMs: r.latenceMs,
     attendues: attendues.map((a) => [a.tMs, a.midi]),
     joues: joues.map((j) => [j.tMs, j.midi]),
     notes: r.notes.map((n) => [n.etat, n.jouee, n.ecartMs]),
@@ -730,10 +757,10 @@ function terminerPiece() {
     }
     if (dech.rejoue) zone.append(el('p', { class: 'boite-info' }, 'Pièce rejouée : elle ne compte pas.'));
     else {
-      const e = enregistrerPiece(etat, { niveau: dech.niveau, graine: dech.graine, bpm: dech.bpm, resultat: r }, Date.now());
+      const e = enregistrerPiece(etat, { main: dech.main, niveau: dech.niveau, graine: dech.graine, bpm: dech.bpm, resultat: r }, Date.now());
       sauver();
       zone.append(el('p', { class: 'boite-info' }, `Prochaine pièce à ${e.bpmApres} à la noire.`));
-      if (e.debloque) zone.append(el('div', { class: 'debloque' }, `Niveau débloqué : Déchiffrage, niveau ${e.debloque}`));
+      if (e.debloque) zone.append(el('div', { class: 'debloque' }, `Niveau débloqué : Déchiffrage ${NOMS_MAIN[dech.main].toLowerCase()}, niveau ${e.debloque}`));
     }
   }
   // Une pièce qui n'a pas compté (rien entendu, parasites) n'avait pas été enregistrée :
@@ -782,10 +809,11 @@ async function ouvrirTestMicro() {
     $('test-fil').textContent = 'Le micro a été refusé. Autorise-le pour ce site dans les réglages du navigateur.';
     return;
   }
+  // plage de la main gauche : couvre aussi la main droite
   ecoute.demarrer((tr) => {
     $('test-niveau').style.width = `${Math.min(100, Math.round(tr.rms * 400))}%`;
     $('test-note').textContent = tr.f0 ? nomMidi(Math.round(midiDeFrequence(tr.f0))) : '…';
-  });
+  }, { fMin: REGLES_ECOUTE.fMin.gauche });
   clearInterval(testMicro);
   testMicro = setInterval(() => {
     if (!ecoute) return; // micro fermé (arrière-plan) pendant que le minuteur tournait encore
@@ -869,6 +897,7 @@ $('btn-importer-valider').addEventListener('click', () => {
   $('import-message').textContent = 'Sauvegarde importée.';
 });
 $('btn-dech-accueil').addEventListener('click', quitterDechiffrage);
+for (const b of $('dech-main').querySelectorAll('button')) b.addEventListener('click', () => choisirMain(b.dataset.main));
 $('btn-test-micro').addEventListener('click', ouvrirTestMicro);
 $('btn-test-retour').addEventListener('click', quitterTestMicro);
 $('opt-clic').addEventListener('change', (ev) => { etat.prefs.clic = ev.target.checked; sauver(); });

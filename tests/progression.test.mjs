@@ -344,14 +344,14 @@ test('normaliser', () => {
 
 test('état : déchiffrage et préférence du clic, y compris depuis un ancien état', () => {
   const e = etatInitial();
-  assert.equal(e.dechiffrage.niveau, 1);
+  assert.equal(e.dechiffrage.droite.niveau, 1);
   assert.equal(e.prefs.clic, false);
   const ancien = normaliser({ version: 1, cartes: {}, niveaux: { A: 2 }, seances: [], prefs: { silence: true } });
   assert.deepEqual(ancien.dechiffrage, etatInitial().dechiffrage);
   assert.equal(ancien.prefs.silence, true);
   assert.equal(ancien.prefs.clic, false);
   const garde = normaliser({ ...etatInitial(), dechiffrage: { niveau: 2, bpm: { 1: 72, 2: 60, 3: 60 }, historique: [{ niveau: 1 }] } });
-  assert.equal(garde.dechiffrage.niveau, 2);
+  assert.equal(garde.dechiffrage.droite.niveau, 2);
   assert.equal(garde.dechiffrage.historique.length, 1);
 });
 

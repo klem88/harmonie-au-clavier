@@ -1,5 +1,6 @@
-// Déchiffrage : une courte pièce inédite pour la main droite (clé de sol), tirée d'une graine.
-// Pur, sans DOM : même niveau + même graine = même pièce.
+// Déchiffrage : une courte pièce inédite, tirée d'une graine, pour la main droite (clé de sol, autour de do4)
+// ou la main gauche (clé de fa, la même pièce une octave plus bas, autour de do3).
+// Pur, sans DOM : même niveau + même graine + même main = même pièce.
 
 import { note, gammeMajeure, armure, midi } from './theorie.js';
 import { cellule, U } from './rythme.js';
@@ -65,17 +66,20 @@ export function melodieValide(degres, midis, sautMax) {
   return true;
 }
 
-// Degré 0 = tonique à l'octave 4 ; 7 = tonique à l'octave au-dessus.
-function noteDuDegre(tonique, gamme, d) {
+export const MAINS = { droite: { cle: 'sol', octave: 4 }, gauche: { cle: 'fa', octave: 3 } };
+
+// Degré 0 = tonique à l'octave de base (4 main droite, 3 main gauche) ; 7 = tonique à l'octave au-dessus.
+function noteDuDegre(tonique, gamme, d, octaveBase) {
   const rang = LETTRES_PIECE.indexOf(tonique.lettre) + d;
   const n = gamme[((d % 7) + 7) % 7];
-  const octave = 4 + Math.floor(rang / 7);
+  const octave = octaveBase + Math.floor(rang / 7);
   return { note: n, octave, midi: midi(n, octave) };
 }
 
-export function genererPiece(niveau, graine) {
+export function genererPiece(niveau, graine, { main = 'droite' } = {}) {
   const cfg = NIVEAUX_PIECE[niveau];
   if (!cfg) throw new Error(`Niveau de déchiffrage inconnu : ${niveau}`);
+  const { cle, octave } = MAINS[main];
   const r = generateurAlea(graine);
   const tonalite = choisirDans(r, cfg.tonalites);
   const temps = choisirDans(r, cfg.temps);
@@ -101,9 +105,9 @@ export function genererPiece(niveau, graine) {
       }
     }
     if (degres.length !== n) continue;
-    const notes = degres.map((d, i) => ({ ...noteDuDegre(tonique, gamme, d), ...evenements[i], degre: d }));
+    const notes = degres.map((d, i) => ({ ...noteDuDegre(tonique, gamme, d, octave), ...evenements[i], degre: d }));
     if (melodieValide(degres, notes.map((x) => x.midi), cfg.sautMax)) {
-      return { niveau, graine, tonalite, tonique, armure: armure(tonique).nombre, temps, mesures: MESURES_PIECE, notes };
+      return { niveau, graine, main, cle, tonalite, tonique, armure: armure(tonique).nombre, temps, mesures: MESURES_PIECE, notes };
     }
   }
   throw new Error(`Pièce impossible à générer (niveau ${niveau}, graine ${graine})`);

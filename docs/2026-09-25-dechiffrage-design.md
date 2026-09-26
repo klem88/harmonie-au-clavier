@@ -12,6 +12,11 @@ pupitre écoute au micro et corrige : notes justes, fausses, manquées, en trop,
 Étapes : **1. main droite seule** (ce document) · 2. main gauche seule · 3. mains ensemble (correction indicative).
 Les étapes 2 et 3 feront l'objet de leur propre conception.
 
+**Étape 2 faite (2026-09-26)** : main gauche en clé de fa, même générateur une octave plus bas (tonique à
+l'octave 3), écoute dès 100 Hz pour cette main (180 Hz inchangé pour la droite), un parcours par main
+(`dechiffrage.droite` / `dechiffrage.gauche`, niveau et tempos propres ; l'historique porte `main`, absent = droite ;
+l'ancienne forme est reprise comme parcours main droite). Choix de la main en haut de l'écran Déchiffrage.
+
 ## 2. Hors périmètre (étape 1)
 
 - Main gauche, clé de fa, accords, mains ensemble.

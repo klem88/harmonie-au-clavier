@@ -252,3 +252,7 @@ textarea { width: 100%; min-height: 120px; font-family: ui-monospace, Menlo, Con
 .pulsation i { width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); }
 .pulsation.actif i { background: var(--accent); }
 .dech-actions { display: grid; gap: 10px; }
+.choix-main { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.choix-main .btn { min-height: 52px; padding: 6px 10px; line-height: 1.25; background: var(--surface-2); border-color: transparent; }
+.choix-main .btn[aria-pressed="true"] { background: var(--accent-doux); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.choix-main[hidden] { display: none; }

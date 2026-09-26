@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { genererPiece } from '../src/piece.js';
 import { partitionSvg, geometriePartition, curseurA } from '../src/partition.js';
+import { positionPortee, POS_DIESES } from '../src/portee.js';
 import { U } from '../src/rythme.js';
 
 const compter = (s, motif) => s.split(motif).length - 1;
@@ -72,4 +73,25 @@ test('croches liées par deux, noire pointée avec son point, ronde sans hampe',
   const ronde = pieceOu(3, (p) => p.notes.at(-1).token === 'r');
   const svg = partitionSvg(ronde);
   assert.ok(svg.includes('tete vide'));
+});
+
+test('main gauche : clé de fa sur chaque ligne, notes placées en clé de fa', () => {
+  const sol = partitionSvg(genererPiece(2, 7));
+  assert.equal(compter(sol, '<circle class="cle"'), 0);
+  const p = genererPiece(2, 7, { main: 'gauche' });
+  const svg = partitionSvg(p);
+  assert.equal(compter(svg, '<circle class="cle"'), 3 * 2, 'clé de fa (3 cercles) sur les 2 lignes');
+  const geo = geometriePartition(p);
+  const cy = [...svg.matchAll(/<ellipse class="tete[^"]*" cx="[^"]+" cy="([^"]+)"/g)].map((m) => Number(m[1]));
+  const attendus = p.notes.map((n) => geo.basPortee(geo.ou(n.pos).ligne) - positionPortee(n.note, n.octave, 'fa') * 5);
+  assert.deepEqual(cy, attendus);
+});
+
+test('main gauche : armure aux positions de la clé de fa', () => {
+  const p = pieceOu(2, (x) => x.tonalite === 'G');
+  const g = genererPiece(2, p.graine, { main: 'gauche' });
+  const geo = geometriePartition(g);
+  const [, x, y] = partitionSvg(g).match(/<text class="alteration" x="([^"]+)" y="([^"]+)"/).map(Number);
+  assert.equal(y, geo.basPortee(0) - POS_DIESES.fa[0] * 5 + 5);
+  assert.ok(x - 4 > 53 + 2.4 + 2, `premier dièse (x ${x}) collé aux points de la clé de fa (x 53)`);
 });

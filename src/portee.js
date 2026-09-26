@@ -38,7 +38,7 @@ export function cleSol() {
   // Tracé simplifié : boucle sur la 2e ligne (sol), montée, crochet en bas.
   return `<path class="cle" d="M 29 108 Q 18 114 17 104 Q 17 97 23 97 Q 30 97 30 105 L 30 30 Q 30 18 25 18 Q 19 18 18 30 Q 18 44 40 66 Q 47 76 37 84 Q 26 89 19 80 Q 14 70 24 65 Q 34 62 36 72" fill="none" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`;
 }
-function cleFa() {
+export function cleFa() {
   return `<path class="cle" d="M 20 66 Q 19 46 33 46 Q 46 46 46 60 Q 46 80 22 94" fill="none" stroke-width="2.8" stroke-linecap="round"/><circle class="cle" cx="21" cy="66" r="3.4"/><circle class="cle" cx="53" cy="55" r="2.4"/><circle class="cle" cx="53" cy="65" r="2.4"/>`;
 }
 
