@@ -17,6 +17,10 @@ l'octave 3), écoute dès 100 Hz pour cette main (180 Hz inchangé pour la droit
 (`dechiffrage.droite` / `dechiffrage.gauche`, niveau et tempos propres ; l'historique porte `main`, absent = droite ;
 l'ancienne forme est reprise comme parcours main droite). Choix de la main en haut de l'écran Déchiffrage.
 
+**Étape 3 faite (2026-09-26)** : mains ensemble sur une grande portée, niveaux E1–E3, écoute qui vérifie les
+notes attendues par leurs harmoniques et verdict confirmé par l'élève ; conception
+`2026-09-26-dechiffrage-ensemble-design.md`, plan `2026-09-26-dechiffrage-ensemble-plan.md`.
+
 ## 2. Hors périmètre (étape 1)
 
 - Main gauche, clé de fa, accords, mains ensemble.
