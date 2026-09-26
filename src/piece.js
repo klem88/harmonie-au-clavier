@@ -42,11 +42,11 @@ export function generateurAlea(graine) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const choisirDans = (r, tab) => tab[Math.floor(r() * tab.length)];
+export const choisirDans = (r, tab) => tab[Math.floor(r() * tab.length)];
 
 // [pas en degrés, poids] : surtout des degrés conjoints, quelques sauts.
 const PAS_MELODIE = [[1, 6], [-1, 6], [0, 1], [2, 3], [-2, 3], [3, 1], [-3, 1], [4, 1], [-4, 1]];
-function tirerPas(r, sautMax) {
+export function tirerPas(r, sautMax) {
   const possibles = PAS_MELODIE.filter(([p]) => Math.abs(p) <= sautMax);
   let x = r() * possibles.reduce((s, [, w]) => s + w, 0);
   for (const [p, w] of possibles) { x -= w; if (x < 0) return p; }
@@ -69,7 +69,7 @@ export function melodieValide(degres, midis, sautMax) {
 export const MAINS = { droite: { cle: 'sol', octave: 4 }, gauche: { cle: 'fa', octave: 3 } };
 
 // Degré 0 = tonique à l'octave de base (4 main droite, 3 main gauche) ; 7 = tonique à l'octave au-dessus.
-function noteDuDegre(tonique, gamme, d, octaveBase) {
+export function noteDuDegre(tonique, gamme, d, octaveBase) {
   const rang = LETTRES_PIECE.indexOf(tonique.lettre) + d;
   const n = gamme[((d % 7) + 7) % 7];
   const octave = octaveBase + Math.floor(rang / 7);
