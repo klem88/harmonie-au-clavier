@@ -536,21 +536,21 @@ function rendreProgression() {
   const parcours = (main) => {
     const p = dd[main];
     const bloque = etatDeblocageDechiffrage(etat, main);
-    if (main === 'ensemble' && !ensembleOuvert(etat)) return el('p', { class: 'sous' }, el('b', {}, `${NOMS_MAIN[main]} (${CLE_MAIN[main]})`), ' : s'ouvre au niveau 2 des deux mains.');
+    if (main === 'ensemble' && !ensembleOuvert(etat)) return el('p', { class: 'sous' }, el('b', {}, `${NOMS_MAIN[main]} (${CLE_MAIN[main]})`), ' : s’ouvre au niveau 2 des deux mains.');
     const mains = bloque?.mainsRequises ? ` et le niveau ${bloque.mainsRequises} des deux mains${bloque.mainsOk ? ' ✓' : ''}` : '';
     return el('p', { class: 'sous' }, el('b', {}, `${NOMS_MAIN[main]} (${CLE_MAIN[main]}) · niveau ${p.niveau}`),
       ` · tempo ${Object.entries(p.bpm).map(([n, v]) => `niv. ${n} : ${v}`).join(', ')}. `,
       bloque ? `Pour ouvrir le niveau ${bloque.suivant} : ${bloque.reussites}/${bloque.cible} réussites sur les ${bloque.fenetre} dernières pièces (${bloque.jouees} jouée${bloque.jouees > 1 ? 's' : ''})${mains}.` : 'Tous les niveaux sont ouverts.');
   };
-  $(‘prog-dechiffrage’).replaceChildren(
-    el(‘h3’, {}, ‘Déchiffrage au piano’),
-    parcours(‘droite’),
-    parcours(‘gauche’),
-    parcours(‘ensemble’),
+  $('prog-dechiffrage').replaceChildren(
+    el('h3', {}, 'Déchiffrage au piano'),
+    parcours('droite'),
+    parcours('gauche'),
+    parcours('ensemble'),
     recentes.length
-      ? el(‘table’, {}, el(‘thead’, {}, el(‘tr’, {}, el(‘th’, {}, ‘Date’), el(‘th’, {}, ‘Main’), el(‘th’, {}, ‘Niv.’), el(‘th’, {}, ‘Justes’), el(‘th’, {}, ‘Tempo’))),
-        el(‘tbody’, {}, ...recentes.map((h) => el(‘tr’, {}, el(‘td’, {}, date(h.date)), el(‘td’, {}, { droite: ‘MD’, gauche: ‘MG’, ensemble: ‘2M’ }[h.main ?? ‘droite’]), el(‘td’, {}, String(h.niveau)), el(‘td’, {}, `${h.justes}/${h.total}${h.reussi ? ‘ ✓’ : ‘’}`), el(‘td’, {}, String(h.bpm))))))
-      : el(‘p’, { class: ‘sous’ }, ‘Aucune pièce jouée pour l’instant.’),
+      ? el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'Date'), el('th', {}, 'Main'), el('th', {}, 'Niv.'), el('th', {}, 'Justes'), el('th', {}, 'Tempo'))),
+        el('tbody', {}, ...recentes.map((h) => el('tr', {}, el('td', {}, date(h.date)), el('td', {}, { droite: 'MD', gauche: 'MG', ensemble: '2M' }[h.main ?? 'droite']), el('td', {}, String(h.niveau)), el('td', {}, `${h.justes}/${h.total}${h.reussi ? ' ✓' : ''}`), el('td', {}, String(h.bpm))))))
+      : el('p', { class: 'sous' }, 'Aucune pièce jouée pour l’instant.'),
   );
   $('btn-exporter').textContent = 'Copier ma progression';
   $('import-zone').hidden = true;
@@ -632,7 +632,7 @@ function montrerChoixMain(visible) {
     b.setAttribute('aria-pressed', String(b.dataset.main === etat.dechiffrage.main));
     if (b.dataset.main === 'ensemble') b.disabled = !ensembleOuvert(etat);
   }
-  $('dech-ensemble-sous').textContent = ensembleOuvert(etat) ? 'grande portée' : 's'ouvre au niveau 2 des deux mains';
+  $('dech-ensemble-sous').textContent = ensembleOuvert(etat) ? 'grande portée' : 's’ouvre au niveau 2 des deux mains';
 }
 function choisirMain(main) {
   if (!dech || dech.phase === 'jeu' || etat.dechiffrage.main === main) return;
@@ -653,17 +653,17 @@ function arreterDechiffrage() {
 
 function preparerPiece() {
   arreterDechiffrage();
-  dech.phase = ‘preparation’;
+  dech.phase = 'preparation';
   const { piece } = dech;
-  $(‘dech-niveau’).textContent = `${NOMS_MAIN[dech.main]} · niveau ${dech.niveau} · ${dech.bpm} à la noire${dech.rejoue ? ‘ · rejouée, ne compte pas’ : ‘’}`;
+  $('dech-niveau').textContent = `${NOMS_MAIN[dech.main]} · niveau ${dech.niveau} · ${dech.bpm} à la noire${dech.rejoue ? ' · rejouée, ne compte pas' : ''}`;
   montrerChoixMain(true);
-  $(‘dech-partition’).innerHTML = partitionSvg(piece);
-  $(‘dech-correction’).hidden = true;
+  $('dech-partition').innerHTML = partitionSvg(piece);
+  $('dech-correction').hidden = true;
   const nomNote = (n) => `${nomFr(n.note)}${n.octave}`;
-  const depart = dech.main === ‘ensemble’
+  const depart = dech.main === 'ensemble'
     ? `départ : ${nomNote(piece.droite[0])} à droite, ${nomNote(piece.gauche[0])} à gauche`
     : `départ sur ${nomNote(piece.notes[0])}`;
-  let reste = dech.main === ‘ensemble’ ? 60 : 45;
+  let reste = dech.main === 'ensemble' ? 60 : 45;
   const texte = () => `${nomFr(piece.tonique)} majeur · ${piece.temps} temps · ${depart}. Repère le passage difficile et décide de ne pas t’arrêter. ${reste} s`;
   $('dech-etat').textContent = texte();
   const minuteur = setInterval(() => {
@@ -836,7 +836,7 @@ function terminerPieceEnsemble() {
   if (!r.compte) {
     zone.append(
       el('p', { class: 'explication' }, r.rienEntendu
-        ? 'Je n'ai rien entendu : rapproche le téléphone du piano ou monte le volume, puis réessaie.'
+        ? 'Je n’ai rien entendu : rapproche le téléphone du piano ou monte le volume, puis réessaie.'
         : 'Beaucoup de sons parasites : je ne peux pas corriger cette fois. Coupe le clic sonore ou le bruit autour, puis réessaie.'),
       el('p', { class: 'boite-info' }, 'Cette pièce ne compte pas.'));
     boutonsFin();
@@ -846,9 +846,9 @@ function terminerPieceEnsemble() {
   const arrets = r.arrets.length ? `arrêt${r.arrets.length > 1 ? 's' : ''} mesure${r.arrets.length > 1 ? 's' : ''} ${r.arrets.join(', ')}` : 'aucun arrêt';
   zone.append(
     el('div', { class: 'verdict' },
-      el('span', {}, r.propose === 'reussi' ? 'Réussie ?' : r.propose === 'pasEncore' ? 'Pas encore ?' : 'Je n'ai pas bien entendu : à toi de juger'),
+      el('span', {}, r.propose === 'reussi' ? 'Réussie ?' : r.propose === 'pasEncore' ? 'Pas encore ?' : 'Je n’ai pas bien entendu : à toi de juger'),
       el('span', {}, `${r.justes}/${jugees} justes`)),
-    el('p', { class: 'explication' }, `${r.douteuses} douteuse${r.douteuses > 1 ? 's' : ''} · régularité : ${r.ecartMedianMs === null ? '–' : `${r.ecartMedianMs} ms d'écart médian`} · ${arrets}.`),
+    el('p', { class: 'explication' }, `${r.douteuses} douteuse${r.douteuses > 1 ? 's' : ''} · régularité : ${r.ecartMedianMs === null ? '–' : `${r.ecartMedianMs} ms d’écart médian`} · ${arrets}.`),
     el('p', { class: 'sous' }, 'Vert : juste · orange : décalée · rouge : fausse probable · gris « ? » : douteuse (le micro ne sait pas) · pointillé : manquée.'));
   if (dech.rejoue) {
     zone.append(el('p', { class: 'boite-info' }, 'Pièce rejouée : elle ne compte pas.'));
