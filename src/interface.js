@@ -142,7 +142,7 @@ function rendreAccueil() {
     el('span', { class: 'detail' }, `${nbPieces} pièce${nbPieces > 1 ? 's' : ''} jouée${nbPieces > 1 ? 's' : ''} · ${dd[main].bpm[dd[main].niveau]} à la noire · ${autres.map((m) => `${NOMS_MAIN[m]} : niv. ${dd[m].niveau}`).join(' · ')}`),
     el('span', { class: 'detail manque' }, !MICRO_PERMIS ? 'Micro indisponible ici : déchiffrage mis de côté'
       : silence ? 'Mise de côté en mode silencieux'
-        : bloque ? `Niv. ${bloque.suivant} : ${bloque.reussites}/${bloque.cible} réussites sur les ${bloque.fenetre} dernières pièces` : 'Tous les niveaux ouverts')));
+        : bloque ? `Niv. ${bloque.suivant} : ${bloque.reussites}/${bloque.cible} réussites sur les ${bloque.fenetre} dernières pièces${bloque.mainsRequises && !bloque.mainsOk ? ` · et niveau ${bloque.mainsRequises} des deux mains` : ''}` : 'Tous les niveaux ouverts')));
   const notes = { artefact: 'Progression enregistrée en ligne.', local: 'Progression enregistrée dans ce navigateur.', memoire: 'Stockage indisponible : la progression ne sera pas conservée.' };
   $('note-stockage').textContent = notes[stockage.mode];
   montrer('accueil');
@@ -549,7 +549,7 @@ function rendreProgression() {
     parcours('ensemble'),
     recentes.length
       ? el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'Date'), el('th', {}, 'Main'), el('th', {}, 'Niv.'), el('th', {}, 'Justes'), el('th', {}, 'Tempo'))),
-        el('tbody', {}, ...recentes.map((h) => el('tr', {}, el('td', {}, date(h.date)), el('td', {}, { droite: 'MD', gauche: 'MG', ensemble: '2M' }[h.main ?? 'droite']), el('td', {}, String(h.niveau)), el('td', {}, `${h.justes}/${h.total}${h.reussi ? ' ✓' : ''}`), el('td', {}, String(h.bpm))))))
+        el('tbody', {}, ...recentes.map((h) => el('tr', {}, el('td', {}, date(h.date)), el('td', {}, { droite: 'MD', gauche: 'MG', ensemble: '2M' }[h.main ?? 'droite']), el('td', {}, String(h.niveau)), el('td', {}, `${h.justes}/${h.main === 'ensemble' ? h.total - (h.douteuses || 0) : h.total}${h.reussi ? ' ✓' : ''}`), el('td', {}, String(h.bpm))))))
       : el('p', { class: 'sous' }, 'Aucune pièce jouée pour l’instant.'),
   );
   $('btn-exporter').textContent = 'Copier ma progression';
@@ -847,9 +847,11 @@ function terminerPieceEnsemble() {
   }
   const jugees = r.total - r.douteuses;
   const arrets = texteArrets(r.arrets);
+  const marqueVerdict = dech.rejoue ? '' : ' ?';
+  const libelleIncertain = dech.rejoue ? 'Je n’ai pas bien entendu' : 'Je n’ai pas bien entendu : à toi de juger';
   zone.append(
     el('div', { class: 'verdict' },
-      el('span', {}, r.propose === 'reussi' ? 'Réussie ?' : r.propose === 'pasEncore' ? 'Pas encore ?' : 'Je n’ai pas bien entendu : à toi de juger'),
+      el('span', {}, r.propose === 'reussi' ? `Réussie${marqueVerdict}` : r.propose === 'pasEncore' ? `Pas encore${marqueVerdict}` : libelleIncertain),
       el('span', {}, `${r.justes}/${jugees} justes`)),
     el('p', { class: 'explication' }, `${r.douteuses} douteuse${r.douteuses > 1 ? 's' : ''} · régularité : ${r.ecartMedianMs === null ? '–' : `${r.ecartMedianMs} ms d’écart médian`} · ${arrets}.`),
     el('p', { class: 'sous' }, 'Vert : juste · orange : décalée · rouge : fausse probable · gris « ? » : douteuse (le micro ne sait pas) · pointillé : manquée.'));
@@ -858,11 +860,13 @@ function terminerPieceEnsemble() {
     boutonsFinDech(r);
     return;
   }
-  // Rien n'est enregistré avant le choix de l'élève.
+  // Rien n'est enregistré avant le choix de l'élève : le choix de main est masqué pour ne pas perdre la pièce.
+  montrerChoixMain(false);
   const choix = el('div', { class: 'confirmation' });
   const confirmer = (reussi) => {
     const e = enregistrerPiece(etat, { main: 'ensemble', niveau: dech.niveau, graine: dech.graine, bpm: dech.bpm, resultat: { ...r, reussi } }, Date.now());
     sauver();
+    montrerChoixMain(true);
     choix.replaceWith(el('p', { class: 'boite-info' }, `${reussi ? 'Réussie' : 'Pas encore'} : prochaine pièce à ${e.bpmApres} à la noire.`));
     if (e.debloque) zone.append(el('div', { class: 'debloque' }, `Niveau débloqué : Déchiffrage mains ensemble, niveau ${e.debloque}`));
     boutonsFinDech(r);

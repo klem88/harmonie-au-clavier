@@ -18,7 +18,7 @@ export function candidatsPiece(piece) {
 }
 
 // Trame : énergie (sur les 1024 derniers échantillons, pour garder des attaques nettes) et, pour chaque
-// candidat, l'amplitude maximale à ± un quart de ton de chacun de ses harmoniques.
+// candidat, l'amplitude de chacun de ses harmoniques interpolée linéairement à la fréquence exacte.
 // amplitudes : spectre linéaire, fftSize / 2 cases.
 export function trameEnsemble(bufTemps, amplitudes, { sampleRate, fftSize }, candidats, tMs) {
   let e = 0; const n0 = Math.max(0, bufTemps.length - 1024);
