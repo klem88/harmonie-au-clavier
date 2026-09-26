@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { genererPiece } from '../src/piece.js';
+import { genererPieceEnsemble } from '../src/ensemble.js';
 import { partitionSvg, geometriePartition, curseurA } from '../src/partition.js';
 import { positionPortee, POS_DIESES } from '../src/portee.js';
 import { U } from '../src/rythme.js';
@@ -94,4 +95,40 @@ test('main gauche : armure aux positions de la clé de fa', () => {
   const [, x, y] = partitionSvg(g).match(/<text class="alteration" x="([^"]+)" y="([^"]+)"/).map(Number);
   assert.equal(y, geo.basPortee(0) - POS_DIESES.fa[0] * 5 + 5);
   assert.ok(x - 4 > 53 + 2.4 + 2, `premier dièse (x ${x}) collé aux points de la clé de fa (x 53)`);
+});
+
+test('mains ensemble : grande portée, deux portées par ligne, une tête par note des deux mains', () => {
+  const p = genererPieceEnsemble(2, 7);
+  const svg = partitionSvg(p);
+  const lignes = Math.ceil(p.mesures / 2);
+  assert.equal(compter(svg, '<ellipse class="tete'), p.droite.length + p.gauche.length);
+  assert.equal(compter(svg, 'class="ligne" x1="6"'), 2 * 5 * lignes, 'cinq lignes par portée, deux portées par ligne');
+  assert.equal(compter(svg, 'class="accolade"'), lignes);
+  assert.equal(compter(svg, 'class="barre-mesure"'), p.mesures);
+  assert.equal(compter(svg, 'class="chiffrage-partition"'), 4, 'chiffrage sur les deux portées de la première ligne');
+  assert.equal(compter(svg, 'class="cle"'), lignes * (1 + 4), 'une clé de sol (1 tracé) et une clé de fa (tracé et 3 points) par ligne');
+});
+
+test('mains ensemble : barres de mesure et curseur traversent les deux portées', () => {
+  const p = genererPieceEnsemble(1, 13);
+  const geo = geometriePartition(p);
+  const sol = geo.basPortee(0, 'droite'); const fa = geo.basPortee(0, 'gauche');
+  assert.ok(fa - sol >= 90, 'la portée de fa est sous celle de sol');
+  const svg = partitionSvg(p);
+  assert.ok(svg.includes(`class="barre-mesure" x1="${geo.systemes[0].mesures[0].x1}" y1="${sol - 40}" x2="${geo.systemes[0].mesures[0].x1}" y2="${fa}"`));
+  const c = curseurA(geo, 0);
+  assert.ok(c.y1 < sol - 40 && c.y2 > fa);
+});
+
+test('mains ensemble : notes de chaque main sur sa portée, marques par main, « ? » sur les douteuses', () => {
+  const p = genererPieceEnsemble(1, 13);
+  const geo = geometriePartition(p);
+  const marques = { droite: p.droite.map((_, i) => ({ etat: i === 0 ? 'douteuse' : 'juste' })), gauche: p.gauche.map(() => ({ etat: 'fausse' })) };
+  const svg = partitionSvg(p, { marques });
+  assert.equal(compter(svg, 'marque-douteuse'), 1);
+  assert.equal(compter(svg, 'class="doute"'), 1);
+  assert.equal(compter(svg, 'marque-fausse'), p.gauche.length);
+  const g0 = p.gauche[0];
+  const y = geo.basPortee(0, 'gauche') - positionPortee(g0.note, g0.octave, 'fa') * 5;
+  assert.ok(svg.includes(`cy="${y}"`), 'la première note de la main gauche est placée en clé de fa, sur la portée du bas');
 });
