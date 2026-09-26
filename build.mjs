@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const racine = dirname(fileURLToPath(import.meta.url));
-const ORDRE = ['theorie', 'rythme', 'portee', 'voix', 'piece', 'ensemble', 'partition', 'ecoute', 'questions', 'dechiffrage', 'progression', 'stockage', 'clavier', 'audio', 'interface'];
+const ORDRE = ['theorie', 'rythme', 'portee', 'voix', 'piece', 'ensemble', 'partition', 'ecoute', 'verification', 'questions', 'dechiffrage', 'progression', 'stockage', 'clavier', 'audio', 'interface'];
 
 export function assembler() {
   const html = readFileSync(join(racine, 'index.html'), 'utf8');
