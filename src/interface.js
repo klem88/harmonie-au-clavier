@@ -612,6 +612,7 @@ function nouvellePiece() {
   const main = d.main;
   const { niveau, bpm } = d[main];
   const graine = Math.floor(Math.random() * 2 ** 31);
+  arreterDechiffrage(); // sinon le compte à rebours de la pièce remplacée continue et relance le jeu
   dech = { piece: genererPiece(niveau, graine, { main }), graine, main, niveau, bpm: bpm[niveau], rejoue: false, phase: null, minuteur: null, raf: null, origine: 0 };
   preparerPiece();
 }
@@ -649,7 +650,9 @@ function preparerPiece() {
   let reste = 45;
   const texte = () => `${nomFr(piece.tonique)} majeur · ${piece.temps} temps · départ sur ${depart}. Repère le passage difficile et décide de ne pas t’arrêter. ${reste} s`;
   $('dech-etat').textContent = texte();
-  dech.minuteur = setInterval(() => {
+  const minuteur = setInterval(() => {
+    // Minuteur d'une préparation abandonnée (autre pièce, écran quitté) : il s'arrête lui-même.
+    if (!dech || dech.minuteur !== minuteur) { clearInterval(minuteur); return; }
     reste -= 1;
     if (reste > 0) { $('dech-etat').textContent = texte(); return; }
     // Fin du compte à rebours : ne lancer automatiquement que si le micro est déjà ouvert
@@ -658,12 +661,15 @@ function preparerPiece() {
     clearInterval(dech.minuteur); dech.minuteur = null;
     $('dech-etat').textContent = 'À toi : touche « Je suis prêt » quand tu veux.';
   }, 1000);
+  dech.minuteur = minuteur;
   actionsDech(boutonDech('▶ Je suis prêt', jouerPiece, 'btn-principal'));
 }
 
 async function jouerPiece() {
+  if (!dech) return;
   arreterDechiffrage();
   dech.phase = 'jeu';
+  const courant = dech;
   montrerChoixMain(false);
   actionsDech();
   ecoute ||= creerEcoute();
@@ -671,12 +677,12 @@ async function jouerPiece() {
   $('dech-etat').textContent = 'Micro…';
   try { await ecoute.ouvrir(); } catch {
     ecoute = null;
-    if (!dech || dech.phase !== 'jeu') return; // quitté pendant la demande d'autorisation
+    if (dech !== courant || dech.phase !== 'jeu') return; // quitté pendant la demande d'autorisation
     $('dech-etat').textContent = 'Le micro a été refusé. Autorise-le pour ce site dans les réglages du navigateur, puis réessaie.';
     actionsDech(boutonDech('Réessayer', preparerPiece));
     return;
   }
-  if (!dech || dech.phase !== 'jeu') return; // quitté pendant la demande d'autorisation
+  if (dech !== courant || dech.phase !== 'jeu') return; // quitté pendant la demande d'autorisation
   const { piece, bpm } = dech;
   const battement = 60000 / bpm;
   const decompteMs = piece.temps * battement;
@@ -697,7 +703,7 @@ async function jouerPiece() {
   const pulsation = $('dech-pulsation');
   pulsation.hidden = false;
   const boucle = () => {
-    if (!dech || dech.phase !== 'jeu') return;
+    if (dech !== courant || dech.phase !== 'jeu') return;
     const t = performance.now() - origine;
     const depuis = t + decompteMs;
     pulsation.classList.toggle('actif', depuis >= 0 && depuis % battement < 150);
