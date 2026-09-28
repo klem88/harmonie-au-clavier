@@ -14,7 +14,7 @@ armures, accords, notes guides, degrés et II-V-I. Elle complète les fiches de 
 
 ## 2. Hors périmètre (V1)
 
-- Voicings, impro, toucher : c'est le travail au piano avec les fiches.
+- Impro, toucher : c'est le travail au piano avec les fiches. (Les voicings sans fondamentale A/B sont entrés dans l'app le 2026-09-28, dimension L niv. 4.)
 - Saisie libre au clavier : toutes les réponses sont des choix à toucher.
 
 ## 3. Contenu : 9 dimensions × niveaux
@@ -23,19 +23,27 @@ Au départ, le niveau 1 de chaque dimension est ouvert. Un niveau suivant se dé
 
 | Dimension | Niv. 1 | Niv. 2 | Niv. 3 | Niv. 4 |
 |---|---|---|---|---|
-| **A. Armures et quintes** | Armures majeures jusqu'à 3 ♯/♭, dans les deux sens (tonalité → armure, armure → tonalité) | 4 ♯/♭ et ré♭ majeur + relatives mineures (au-delà : jugé trop rare, retiré) | Cycle : quinte au-dessus / en dessous ; IV et V d'une tonalité | — |
-| **B. Accords** | Triades majeures et mineures, nom → notes et notes → nom | + diminuées et augmentées, toutes fondamentales | Accords de 7e : maj7, 7, m7 | + m7♭5, °7 ; renversements (notes → nom avec basse ≠ fondamentale) |
+| **A. Armures et quintes** | Armures majeures jusqu'à 3 ♯/♭, dans les deux sens (tonalité → armure, armure → tonalité) | 4 ♯/♭ et ré♭ majeur + relatives mineures (au-delà : jugé trop rare, retiré) | IV et V d'une tonalité (« quinte au-dessus / en dessous » retirées le 2026-09-28 : doublon de V/IV et de E) | — |
+| **B. Accords** | Triades majeures et mineures, nom → notes et notes → nom | + diminuées et augmentées sur les fondamentales courantes ; majeures et mineures restantes (C♯m, G♯m plutôt que D♭m, A♭m : orthographe la plus simple) | Accords de 7e : maj7, 7, m7 | + m7♭5, °7 ; renversements (notes → nom avec basse ≠ fondamentale) |
 | **C. Notes guides** | Tierce et 7e de maj7, 7, m7 dans les tonalités courantes (C F G B♭ E♭ D A) | Toutes fondamentales + m7♭5 | Enchaînement : « Dm7 → G7 : où va la 7e ? » (résolution 7e → 3ce) | — |
 | **D. Degrés et II-V-I** | Degré → triade (« IV de sol ? ») en majeur | Accords de 7e sur chaque degré, dans les deux sens (« Am7 en do = ? ») | II-V-I majeur dans toutes les tonalités (« le V de A♭ ? », « le II-V-I en E ? ») | II-V-I mineur : IIø – V7 – i |
-| **E. Intervalles** *(ajouté le 2026-09-22)* | Nom → note et note → nom depuis do, sol, fa (3ce, 4te, 5te, 6te, 7e) | Toutes fondamentales, secondes à septièmes | Renversements ; quarte augmentée / quinte diminuée (piège enharmonique) | — |
-| **F. Oreille** *(ajouté le 2026-09-22)* | Intervalles mélodiques joués par le navigateur (Web Audio) | Triades : majeur, mineur, diminué, augmenté | Accords de 7e : maj7, 7, m7, m7♭5, °7 | Cadences : II-V-I majeur, II-V-i mineur, I-IV-V-I, I-vi-IV-V |
+| **E. Intervalles** *(ajouté le 2026-09-22)* | Nom → note et note → nom depuis do, sol, fa (3ce, 4te, 5te, 6te, 7e) | Secondes à septièmes : « au-dessus de » depuis les fondamentales courantes, sans réponse doublement altérée ; « quel intervalle » depuis les notes naturelles | Renversements ; quarte augmentée / quinte diminuée (piège enharmonique) | — |
+| **F. Oreille** *(ajouté le 2026-09-22)* | Intervalles mélodiques joués par le navigateur (Web Audio), de la seconde mineure à l'octave, triton compris | Triades : majeur, mineur, diminué, augmenté | Accords de 7e : maj7, 7, m7, m7♭5, °7 | Cadences : II-V-I majeur, II-V-i mineur, I-IV-V-I, I-vi-IV-V |
 | **G. Rythme** *(ajouté le 2026-09-23)* | Lecture : compter une cellule (« 1 et (2) et 3 4 »), valeurs, compléter une mesure, chiffrage | Dictée : la cellule est jouée deux fois sur le clic, on choisit l'écriture (choix en images) | Frappe : métronome, décompte d'une mesure, on frappe la cellule deux fois ; critère = écart moyen aux attaques (≤ 80 ms pour monter, médiane ≤ 70 ms pour débloquer) | Patterns à deux mains (deux zones sur l'écran) : bossa nova, swing, stride, 3 contre 2, valse, syncope, à 72 et 96 |
 | **H. Lecture** *(ajouté le 2026-09-24)* | Clé de sol, notes naturelles de do4 à sol5 ; on répond en **touchant la touche** sur le clavier (classe de hauteur, l'octave est expliquée) | Clé de fa, mi2 à do4 | Armures jusqu'à 3 altérations (la note lue doit tenir compte de l'armure) et altérations accidentelles | Lignes supplémentaires éloignées ; intervalles lus sur la portée (4 choix) |
 | **I. Chant** *(ajouté le 2026-09-24)* | Reproduire la note jouée (référence à l'octave 3, octave libre à l'évaluation) | Chanter un intervalle au-dessus de la note jouée | Chanter la fondamentale, la tierce ou la quinte d'un accord joué | Reproduire une mélodie de 3 notes (3 fenêtres d'écoute) |
 | **J. Déchiffrage** *(ajouté le 2026-09-25)* | Pièce de 4 mesures générée, do majeur, noires et blanches, jouée au piano et corrigée au micro | + croches, sol/fa/ré majeur | 3/4, noire pointée, changement de position | — (voir [2026-09-25-dechiffrage-design.md](2026-09-25-dechiffrage-design.md)) |
 
-Prévu plus tard, hors V1 : **D niv. 5** dominantes secondaires (V/V, V/II…) et substitution tritonique,
-quand l'élève aborde les fiches 4 et 6 de la roadmap.
+Ajouté le 2026-09-28, après une revue critique du catalogue (références : Mark Levine, *The Jazz Piano Book* ;
+approche « fonctionnelle » de l'oreille, celle du solfège Kodály et de *Functional Ear Trainer*) :
+
+| Dimension | Niv. 1 | Niv. 2 | Niv. 3 | Niv. 4 |
+|---|---|---|---|---|
+| **K. Oreille tonale** | Une cadence I-IV-V-I installe la tonalité, puis une note : quel degré (1 à 7) ? | Après la cadence, un accord : I, ii, IV, V ou vi ? | Après la cadence, une cellule de 3 notes (1-2-3, 5-4-3, 1-7-1…) : quels degrés ? | — |
+| **L. Jazz : couleurs et grilles** | Accords 6, m6, 7sus4 (deux sens) ; 9e, 13e, ♭9 dans les II-V-I | Dominantes secondaires V7/ii, V7/IV, V7/V, V7/vi (deux sens) ; substitut tritonique | Grilles de standards (Real Book) : Autumn Leaves, Blue Bossa, Fly Me to the Moon, Take the A Train, Girl from Ipanema, Satin Doll, Rhythm changes | Voicings sans fondamentale A (3 en bas) et B (7 en bas) dans le II-V-I |
+
+Ces deux dimensions ont leur niveau 1 ouvert d'emblée : l'élève connaît déjà la théorie, on ne la fait pas
+repasser par les niveaux bas de B, C ou D pour y accéder. Seuils de vitesse : ceux de D et F (9 s / 7 s).
 
 ### Lien avec les fiches du vault
 

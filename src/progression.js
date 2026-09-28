@@ -23,6 +23,9 @@ export const REGLES = {
     G: { rapideMs: 7000, medianeMaxMs: 5500, parNiveau: { 3: { rapideMs: 80, medianeMaxMs: 70 }, 4: { rapideMs: 90, medianeMaxMs: 80 } } },
     // Chant : le « temps » est l'écart en cents à la note visée (± 50 = juste, ≤ 35 pour monter).
     I: { rapideMs: 35, medianeMaxMs: 30 },
+    // Oreille tonale et jazz : on écoute une cadence, ou on analyse une grille : une opération de plus.
+    K: { rapideMs: 9000, medianeMaxMs: 7000 },
+    L: { rapideMs: 9000, medianeMaxMs: 7000 },
   },
   fenetre: 20,
   tailleSeance: 20,

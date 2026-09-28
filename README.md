@@ -1,7 +1,8 @@
 # 08 — Harmonie au clavier (app d'entraînement)
 
 Petite web app de questions rapides pour installer les réflexes d'harmonie : armures, accords,
-notes guides, degrés et II-V-I, intervalles, oreille, rythme, lecture sur portée, chant au micro. Conception : [docs/conception.md](docs/conception.md) ·
+notes guides, degrés et II-V-I, intervalles, oreille, rythme, lecture sur portée, chant au micro, oreille tonale
+(degrés après une cadence), jazz (accords 6 et sus4, extensions, dominantes secondaires, grilles de standards, voicings). Conception : [docs/conception.md](docs/conception.md) ·
 plan : [docs/plan-realisation.md](docs/plan-realisation.md).
 
 ## Utiliser

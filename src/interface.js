@@ -119,7 +119,7 @@ function rendreAccueil() {
     const manque = verrou ? `Niv. ${d.deblocage.suivant} : ${texteVerrou(verrou)}`
       : d.deblocage ? `Niv. ${d.deblocage.suivant} prêt à s'ouvrir` : 'Tous les niveaux ouverts';
     const sansMicro = dim === 'I' && !MICRO_PERMIS;
-    const muet = sansMicro || (silence && (dim === 'F' || dim === 'I'));
+    const muet = sansMicro || (silence && 'FIK'.includes(dim));
     conteneur.append(el('button', { class: `dim${muet ? ' inactif' : ''}`, type: 'button', disabled: muet ? '' : undefined, onclick: () => demarrerSeance({ dimension: dim }) },
       el('span', { class: 'nom' }, d.nom),
       el('span', { class: 'niveau' }, `niv. ${d.niveauOuvert}`),

@@ -37,6 +37,7 @@ test('le catalogue est valide carte par carte', () => {
     if (c.dimension === 'F') assert.ok(c.audio && ['melodique', 'accord', 'cadence'].includes(c.audio.mode), `audio manquant ${c.id}`);
     else if (c.dimension === 'G' && c.niveau === 2) assert.ok(c.audio && c.audio.mode === 'rythme' && c.audio.onsetsMs.length > 0, `audio manquant ${c.id}`);
     else if (c.dimension === 'I') assert.ok(c.audio, `audio manquant ${c.id}`);
+    else if (c.dimension === 'K') assert.ok(c.audio && c.audio.mode === 'tonal' && c.audio.cadence.length === 4, `audio manquant ${c.id}`);
     else assert.equal(c.audio, undefined);
     if (c.dimension === 'G') assert.equal(!!c.frappe, c.niveau >= 3, `frappe attendue seulement aux niveaux 3-4 : ${c.id}`);
   }
@@ -75,7 +76,7 @@ test('cartes précises', () => {
   assert.equal(carte('A1:C:armure').reponse, 'aucune');
   assert.equal(carte('A2:Eb:relative').reponse, 'do mineur');
   assert.equal(carte('A2:F#m:armure').reponse, '3 ♯');
-  assert.equal(carte('A3:Ab:quinteSup').reponse, 'mi♭');
+  assert.equal(carte('A3:Ab:quinteSup'), undefined, 'quinte au-dessus : doublon de V et de E, retiré');
   assert.equal(carte('A3:Bb:V').reponse, 'fa');
   assert.equal(carte('B4:C:maj:renv1').reponse, 'C (1er renversement)');
   assert.equal(carte('B4:C:maj:renv1').enonce, 'mi sol do = ?');
@@ -90,7 +91,9 @@ test('cartes précises', () => {
   assert.ok(carte('E1:C:M3:note').pieges.includes('mi♭'));
   assert.equal(carte('E1:G:m7:nom').reponse, 'septième mineure');
   assert.equal(carte('E1:G:m7:nom').enonce, 'sol → fa : quel intervalle ?');
-  assert.equal(carte('E2:Ab:M6:note').reponse, 'fa');
+  assert.equal(carte('E2:Eb:M6:note').reponse, 'do');
+  assert.equal(carte('E2:Ab:M6:note'), undefined, 'E2 « au-dessus de » : fondamentales courantes seulement');
+  assert.ok(catalogue().filter((c) => c.dimension === 'E').every((c) => !/𝄫|𝄪/.test(c.reponse)), 'pas de double altération en E');
   assert.equal(carte('E3:renv:m3').reponse, 'sixte majeure');
   assert.equal(carte('E3:C:A4:note').reponse, 'fa♯');
   assert.ok(carte('E3:C:A4:note').pieges.includes('sol♭'));
@@ -98,6 +101,8 @@ test('cartes précises', () => {
   assert.equal(carte('E3:C:d5:nom').enonce, 'do → sol♭ : quel intervalle ?');
 
   assert.equal(carte('F1:C:P5').reponse, 'quinte juste');
+  assert.equal(carte('F1:C:m2').reponse, 'seconde mineure');
+  assert.equal(carte('F1:G:A4').reponse, 'quarte augmentée');
   assert.deepEqual(carte('F1:C:P5').audio.mode, 'melodique');
   assert.equal(carte('F2:F:min').reponse, 'mineur');
   assert.equal(carte('F3:G:7').reponse, '7 (dominante)');
@@ -141,4 +146,49 @@ test('melangerChoix garde les 4 choix et mélange', () => {
   const choix = melangerChoix(c, alea);
   assert.equal(choix.length, 4);
   assert.deepEqual([...choix].sort(), [c.reponse, ...c.pieges].sort());
+});
+
+test('accords : orthographe la plus simple de la fondamentale', () => {
+  assert.equal(carte('B2:C#:min:notes').reponse, 'do♯ mi sol♯');
+  assert.equal(carte('B2:Db:min:notes'), undefined);
+  assert.equal(carte('B2:Db:maj:notes').reponse, 'ré♭ fa la♭');
+  assert.equal(carte('B3:G#:m7:notes').reponse, 'sol♯ si ré♯ fa♯');
+  assert.equal(carte('B4:D#:m7b5:notes').reponse, 'ré♯ fa♯ la do♯');
+  assert.equal(carte('B4:C#:dim7:notes').reponse, 'do♯ mi sol si♭');
+  assert.equal(carte('C2:C#:m7:tierce').reponse, 'mi');
+  assert.equal(cartesDuNiveau('B', 2).filter((c) => c.id.includes(':aug:')).length, 14, 'triades augmentées : 7 fondamentales courantes');
+});
+
+test('oreille tonale : degrés, accords et cellules après une cadence', () => {
+  const k1 = carte('K1:C:4');
+  assert.equal(k1.reponse, 'degré 4');
+  assert.deepEqual(k1.pieges, ['degré 3', 'degré 5', 'degré 2']);
+  assert.deepEqual(k1.audio.midis, [65]);
+  assert.equal(carte('K1:A:7').audio.midis[0], 80, 'sensible de la : sol♯5');
+  assert.equal(carte('K2:G:6').reponse, 'vi');
+  assert.match(carte('K2:G:6').explication, /Em \(mi sol si\)/);
+  assert.deepEqual(carte('K3:C:171').audio.midis, [60, 59, 60], '1-7-1 : la sensible sous la tonique');
+  assert.deepEqual(carte('K3:F:531').audio.midis, [72, 69, 65]);
+});
+
+test('jazz : couleurs, extensions, dominantes secondaires, grilles, voicings', () => {
+  assert.equal(carte('L1:C:6:notes').reponse, 'do mi sol la');
+  assert.equal(carte('L1:D:m6:notes').reponse, 'ré fa la si');
+  assert.equal(carte('L1:G:7sus4:notes').reponse, 'sol do ré fa');
+  assert.equal(carte('L1:C:V:13').reponse, 'mi');
+  assert.equal(carte('L1:C:V:b9').reponse, 'la♭');
+  assert.equal(carte('L1:F:ii:9').reponse, 'la');
+  assert.equal(carte('L2:C:2:dominante').reponse, 'A7');
+  assert.equal(carte('L2:C:5:dominante').reponse, 'D7');
+  assert.equal(carte('L2:F:6:cible').enonce, 'A7 en fa majeur : dominante de quel accord ?');
+  assert.equal(carte('L2:F:6:cible').reponse, 'Dm7');
+  assert.equal(carte('L2:C:tritonique').reponse, 'D♭7');
+  assert.equal(carte('L2:F:tritonique').reponse, 'G♭7');
+  assert.equal(carte('L2:Bb:tritonique').reponse, 'B7', 'F7 → B7 plutôt que C♭7');
+  assert.equal(carte('L3:bluebossa-2').reponse, 'II-V-I en ré♭ majeur');
+  assert.equal(carte('L4:C:ii:A').reponse, 'fa la do mi');
+  assert.equal(carte('L4:C:V:B').reponse, 'fa la si mi');
+  assert.equal(carte('L4:C:V:A').reponse, 'si mi fa la');
+  assert.equal(carte('L4:C:I:B').reponse, 'si ré mi sol');
+  assert.equal(carte('L4:Bb:V:B').reponse, 'mi♭ sol la ré');
 });
