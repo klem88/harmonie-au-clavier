@@ -23,7 +23,7 @@ Au départ, le niveau 1 de chaque dimension est ouvert. Un niveau suivant se dé
 
 | Dimension | Niv. 1 | Niv. 2 | Niv. 3 | Niv. 4 |
 |---|---|---|---|---|
-| **A. Armures et quintes** | Armures majeures jusqu'à 3 ♯/♭, dans les deux sens (tonalité → armure, armure → tonalité) | 4 ♯/♭ + relatives mineures (au-delà : jugé trop rare, retiré) | Cycle : quinte au-dessus / en dessous ; IV et V d'une tonalité | — |
+| **A. Armures et quintes** | Armures majeures jusqu'à 3 ♯/♭, dans les deux sens (tonalité → armure, armure → tonalité) | 4 ♯/♭ et ré♭ majeur + relatives mineures (au-delà : jugé trop rare, retiré) | Cycle : quinte au-dessus / en dessous ; IV et V d'une tonalité | — |
 | **B. Accords** | Triades majeures et mineures, nom → notes et notes → nom | + diminuées et augmentées, toutes fondamentales | Accords de 7e : maj7, 7, m7 | + m7♭5, °7 ; renversements (notes → nom avec basse ≠ fondamentale) |
 | **C. Notes guides** | Tierce et 7e de maj7, 7, m7 dans les tonalités courantes (C F G B♭ E♭ D A) | Toutes fondamentales + m7♭5 | Enchaînement : « Dm7 → G7 : où va la 7e ? » (résolution 7e → 3ce) | — |
 | **D. Degrés et II-V-I** | Degré → triade (« IV de sol ? ») en majeur | Accords de 7e sur chaque degré, dans les deux sens (« Am7 en do = ? ») | II-V-I majeur dans toutes les tonalités (« le V de A♭ ? », « le II-V-I en E ? ») | II-V-I mineur : IIø – V7 – i |

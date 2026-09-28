@@ -25,8 +25,8 @@ export const DIMENSIONS = {
 const COURANTES = ['C', 'F', 'G', 'Bb', 'Eb', 'D', 'A'];
 const TOUTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 const RESTANTES = TOUTES.filter((r) => !COURANTES.includes(r));
-// Armures travaillées : jusqu'à 4 dièses ou 4 bémols.
-const TONALITES = ['C', 'G', 'D', 'A', 'E', 'F', 'Bb', 'Eb', 'Ab'];
+// Armures travaillées : jusqu'à 4 dièses ou 4 bémols, plus ré♭ majeur (5 ♭).
+const TONALITES = ['C', 'G', 'D', 'A', 'E', 'F', 'Bb', 'Eb', 'Ab', 'Db'];
 const MINEURES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
 
 const SEP = ' – ';
@@ -60,10 +60,10 @@ function piegesDistincts(candidats, reponse, vivier = []) {
 
 const VIVIER_NOTES = TOUTES.map((r) => fr(N(r)));
 const VIVIER_TONALITES = TONALITES.map(tonMaj);
-const ARMURE_MAX = 4;
-const VIVIER_ARMURES = [-4, -3, -2, -1, 0, 1, 2, 3, 4].map(texteArmure);
-// Piège d'armure : rien au-delà de ARMURE_MAX (le vivier complète).
-const piegeArmure = (n) => (Math.abs(n) <= ARMURE_MAX ? texteArmure(n) : null);
+const [ARMURE_MIN, ARMURE_MAX] = [-5, 4];
+const VIVIER_ARMURES = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4].map(texteArmure);
+// Piège d'armure : rien hors des armures travaillées (le vivier complète).
+const piegeArmure = (n) => (n >= ARMURE_MIN && n <= ARMURE_MAX ? texteArmure(n) : null);
 const enh = (n) => { const e = enharmonique(n); return e ? fr(e) : null; };
 const tons = (i) => {
   const d = demiTons(i); const t = Math.floor(d / 2); const s = t ? `${t} ton${t > 1 ? 's' : ''}` : '';

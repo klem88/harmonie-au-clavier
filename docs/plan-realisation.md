@@ -97,7 +97,7 @@ Contenu par niveau (voir conception §3) ; pièges construits par des fonctions 
 | Niveau | Cartes | Pièges |
 |---|---|---|
 | A1 | 7 tonalités ≤ 3 alt. × (tonalité→armure, armure→tonalité) | nombre ±1, signe inversé |
-| A2 | 2 tonalités à 4 alt. (mi, la♭) × 2 sens + relatives mineures des 9 tonalités jusqu’à 4 alt. (« relative mineure de E♭ ? ») + armure de 8 tonalités mineures | tonalité voisine sur le cycle, relative de la voisine |
+| A2 | 3 tonalités (mi, la♭, ré♭) × 2 sens + relatives mineures des 10 tonalités travaillées (« relative mineure de E♭ ? ») + armure de 8 tonalités mineures | tonalité voisine sur le cycle, relative de la voisine |
 | A3 | quinte sup/inf de 12 notes + IV et V (notes) de 12 tonalités | quarte à la place de quinte, enharmonique, note voisine |
 | B1 | 7 fond. courantes × maj/min × 2 sens | autre qualité, enharmonique d'une note, quinte altérée |
 | B2 | 12 fond. × dim/aug × 2 sens + maj/min sur les 5 fond. restantes × 2 sens | idem |
