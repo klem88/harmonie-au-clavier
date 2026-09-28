@@ -101,7 +101,8 @@ function cartesArmure(niv, t) {
 }
 for (const t of TONALITES) cartesArmure(Math.abs(armure(N(t)).nombre) <= 3 ? 1 : 2, t);
 
-for (const t of TONALITES) {
+// Relatives : on garde aussi si, fa♯ et sol♭ majeur (question d'intervalle, pas d'armure).
+for (const t of [...TONALITES, 'B', 'F#', 'Gb']) {
   const rel = relativeMineure(N(t));
   const n = armure(N(t)).nombre;
   const voisins = TONALITES.filter((x) => Math.abs(armure(N(x)).nombre - n) === 1).map((x) => `${fr(relativeMineure(N(x)))} mineur`);
