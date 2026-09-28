@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DIMENSIONS, catalogue, carte, cartesDuNiveau, melangerChoix } from '../src/questions.js';
+import { DIMENSIONS, catalogue, carte, cartesDuNiveau, melangerChoix, GRILLES, PAVE_ACCORD, nomDuPave, delaiSaisie } from '../src/questions.js';
 
 test('le catalogue est valide carte par carte', () => {
   const cartes = catalogue();
@@ -23,6 +23,25 @@ test('le catalogue est valide carte par carte', () => {
       assert.equal(c.reponse, 'frappe');
       assert.ok(c.frappe.bpm > 0 && c.frappe.mains.length >= 1 && c.frappe.mesures === 2, `frappe incomplète ${c.id}`);
       assert.ok(c.svgCorrection.startsWith('<svg'), `notation manquante ${c.id}`);
+    } else if (c.saisie) {
+      const s = c.saisie;
+      assert.ok(['clavier', 'grille', 'accord'].includes(s.type), `saisie inconnue ${c.id}`);
+      if (s.type === 'clavier') {
+        assert.ok(['une', 'ensemble', 'suite'].includes(s.mode), `mode de clavier ${c.id}`);
+        assert.ok(s.classes.every((x) => Number.isInteger(x) && x >= 0 && x < 12), `classes ${c.id}`);
+        assert.ok(s.classes.length >= 1 || (s.mode === 'ensemble' && c.dimension === 'A'), `aucune touche attendue ${c.id}`);
+        if (s.mode === 'une') assert.equal(s.classes.length, 1, `une seule touche ${c.id}`);
+        if (s.mode === 'ensemble') assert.equal(new Set(s.classes).size, s.classes.length, `touches en double ${c.id}`);
+        // la touche donnée par l'énoncé ne peut pas être la seule réponse : elle la montrerait
+        if (s.mode === 'une' && s.donnees) assert.ok(!s.donnees.includes(s.classes[0]), `réponse déjà marquée ${c.id}`);
+      } else if (s.type === 'grille') {
+        assert.ok(GRILLES[s.grille], `grille inconnue ${c.id}`);
+        assert.ok(GRILLES[s.grille].includes(c.reponse), `réponse hors de la grille ${c.id} : ${c.reponse}`);
+      } else {
+        const noms = PAVE_ACCORD.fondamentales.flat().flatMap((f) => PAVE_ACCORD.types.map((t) => nomDuPave(f, t)));
+        assert.ok(noms.includes(c.reponse), `réponse hors du pavé ${c.id} : ${c.reponse}`);
+      }
+      assert.ok(delaiSaisie(c) >= 0);
     } else {
       assert.equal(c.pieges.length, 3, `3 pièges attendus ${c.id}`);
       const choix = [c.reponse, ...c.pieges];
@@ -34,8 +53,8 @@ test('le catalogue est valide carte par carte', () => {
     if ('BCEF'.includes(c.dimension)) {
       assert.ok(Array.isArray(c.notes) && c.notes.length >= 2, `notes manquantes ${c.id}`);
     }
-    if (c.dimension === 'F') assert.ok(c.audio && ['melodique', 'accord', 'cadence'].includes(c.audio.mode), `audio manquant ${c.id}`);
-    else if (c.dimension === 'G' && c.niveau === 2) assert.ok(c.audio && c.audio.mode === 'rythme' && c.audio.onsetsMs.length > 0, `audio manquant ${c.id}`);
+    if (c.dimension === 'F') assert.ok(c.audio && ['melodique', 'accord', 'cadence', 'midis'].includes(c.audio.mode), `audio manquant ${c.id}`);
+    else if (c.dimension === 'G' && (c.niveau === 2 || c.frappe?.cachee)) assert.ok(c.audio && c.audio.mode === 'rythme' && c.audio.onsetsMs.length > 0, `audio manquant ${c.id}`);
     else if (c.dimension === 'I') assert.ok(c.audio, `audio manquant ${c.id}`);
     else assert.equal(c.audio, undefined);
     if (c.dimension === 'G') assert.equal(!!c.frappe, c.niveau >= 3, `frappe attendue seulement aux niveaux 3-4 : ${c.id}`);
@@ -132,6 +151,65 @@ test('cartes précises', () => {
   assert.deepEqual(carte('I2:C:P5').chant.noms, ['sol']);
   assert.equal(carte('I3:C:min:tierce').chant.noms[0], 'mi♭');
   assert.equal(carte('I4:0').chant.cibles.length, 3);
+});
+
+test('saisie : clavier, grille fixe, pavé d’accord', () => {
+  // une note : la classe de hauteur, l'orthographe reste dans la réponse écrite
+  assert.deepEqual(carte('C1:G:7:tierce').saisie, { type: 'clavier', mode: 'une', classes: [11] });
+  assert.deepEqual(carte('E3:C:A4:note').saisie.classes, [6]);
+  assert.deepEqual(carte('A1:D:tonalite').saisie.classes, [2]);
+  assert.deepEqual(carte('A2:Eb:relative').saisie.classes, [0]);
+  // armure : les notes altérées, aucune pour do majeur
+  assert.deepEqual(carte('A1:D:armure').saisie, { type: 'clavier', mode: 'ensemble', classes: [6, 1] });
+  assert.deepEqual(carte('A1:C:armure').saisie.classes, []);
+  assert.deepEqual(carte('A2:F#m:armure').saisie.classes, [6, 1, 8]);
+  // accord : toutes ses notes
+  assert.deepEqual(carte('B3:Ab:7:notes').saisie.classes, [8, 0, 3, 6]);
+  // II-V-I : les fondamentales, dans l'ordre
+  assert.deepEqual(carte('D3:C:complet').saisie, { type: 'clavier', mode: 'suite', classes: [2, 7, 0], donnees: [] });
+  assert.deepEqual(carte('D4:A:complet').saisie.classes, [11, 4, 9]);
+  // nommer : grille fixe ou pavé
+  assert.equal(carte('B3:Ab:7:nom').saisie.type, 'accord');
+  assert.equal(nomDuPave('Ab', '7'), 'A♭7');
+  assert.equal(carte('D2:C:6:degre').saisie.grille, 'degres');
+  assert.equal(carte('E1:G:m7:nom').saisie.grille, 'intervalles');
+  assert.equal(GRILLES.intervalles.length, 13);
+  assert.equal(carte('F1:C:P5').saisie.grille, 'intervallesOreille');
+  assert.equal(carte('F3:G:7').saisie.grille, 'septiemes');
+  assert.equal(carte('G1:c4-2:completer').saisie.grille, 'figures');
+  // les renversements et les cadences gardent leurs quatre choix
+  assert.equal(carte('B4:C:maj:renv1').saisie, undefined);
+  assert.equal(carte('F4:C:II-V-i_mineur').saisie, undefined);
+});
+
+test('oreille au clavier : rejouer la seconde note, dictée de trois notes', () => {
+  const j = carte('F1:C:P5:joue');
+  assert.equal(j.reponse, 'sol');
+  assert.deepEqual(j.saisie, { type: 'clavier', mode: 'une', classes: [7], donnees: [0] });
+  assert.equal(carte('F1:C:P8:joue'), undefined);
+  const d = carte('F2:dictee:1');
+  assert.deepEqual(d.audio.midis, [62, 66, 69]);
+  assert.equal(d.reponse, 'fa♯ – la');
+  assert.deepEqual(d.saisie, { type: 'clavier', mode: 'suite', classes: [6, 9], donnees: [2] });
+});
+
+test('rythme : cellules tenues et imitation', () => {
+  assert.equal(carte('G3:c4-14').frappe.tenue, true);
+  assert.equal(carte('G3:c4-0').frappe.tenue, undefined);
+  assert.equal(carte('G3:c4-14:imite'), undefined);
+  const i = carte('G3:c4-5:imite');
+  assert.equal(i.frappe.cachee, true);
+  assert.deepEqual(i.audio.onsetsMs, carte('G2:c4-5').audio.onsetsMs);
+});
+
+test('delaiSaisie : le temps du geste dépend du nombre de touches', () => {
+  assert.equal(delaiSaisie(carte('C1:G:7:tierce')), 0);
+  assert.equal(delaiSaisie(carte('E1:G:m7:nom')), 0);
+  assert.equal(delaiSaisie(carte('B4:C:maj:renv1')), 0);
+  assert.equal(delaiSaisie(carte('B3:Ab:7:nom')), 1200);
+  assert.equal(delaiSaisie(carte('B3:Ab:7:notes')), 4800);
+  assert.equal(delaiSaisie(carte('A1:C:armure')), 1200);
+  assert.equal(delaiSaisie(carte('D3:C:complet')), 3600);
 });
 
 test('melangerChoix garde les 4 choix et mélange', () => {

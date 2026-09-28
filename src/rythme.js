@@ -43,6 +43,17 @@ export function onsetsMs(cell, bpm) {
   const parUnite = 60000 / bpm / U;
   return onsets(cell).map((p) => Math.round(p * parUnite));
 }
+// Durée sonore (en unités) de chaque attaque, dans l'ordre d'onsets() : la note et les notes qui lui sont liées.
+export function tenues(cell) {
+  const out = [];
+  for (const e of cell.evenements) {
+    if (e.silence) continue;
+    if (e.lie && out.length) out[out.length - 1] += e.d;
+    else out.push(e.d);
+  }
+  return out;
+}
+export function tenuesMs(cell, bpm) { return tenues(cell).map((d) => Math.round((d * 60000) / bpm / U)); }
 export function dureeMs(cell, bpm) { return Math.round((cell.duree * 60000) / bpm / U); }
 
 const SYLLABES = { 0: '', 3: 'e', 6: 'et', 9: 'a', 4: 'tri', 8: 'o' };
@@ -156,7 +167,7 @@ export function notationSvg(cell, { compte = false } = {}) {
 // ---------- Évaluation d'une frappe ----------
 // attendusMs / tapsMs : instants relatifs à la même origine.
 export function evaluerFrappe(attendusMs, tapsMs, { tolerance = 80, fenetre = 150 } = {}) {
-  const libres = tapsMs.map((t) => ({ t, pris: false }));
+  const libres = tapsMs.map((t, i) => ({ t, i, pris: false }));
   const details = attendusMs.map((a) => {
     let meilleur = null;
     for (const c of libres) {
@@ -164,9 +175,9 @@ export function evaluerFrappe(attendusMs, tapsMs, { tolerance = 80, fenetre = 15
       const ecart = c.t - a;
       if (Math.abs(ecart) <= fenetre && (!meilleur || Math.abs(ecart) < Math.abs(meilleur.ecart))) meilleur = { c, ecart };
     }
-    if (!meilleur) return { attendu: a, tap: null, ecart: null };
+    if (!meilleur) return { attendu: a, tap: null, indice: null, ecart: null };
     meilleur.c.pris = true;
-    return { attendu: a, tap: meilleur.c.t, ecart: Math.round(meilleur.ecart) };
+    return { attendu: a, tap: meilleur.c.t, indice: meilleur.c.i, ecart: Math.round(meilleur.ecart) };
   });
   const touches = details.filter((d) => d.tap !== null);
   const manques = details.length - touches.length;
@@ -175,6 +186,43 @@ export function evaluerFrappe(attendusMs, tapsMs, { tolerance = 80, fenetre = 15
   const ecartSigne = touches.length ? Math.round(touches.reduce((s, d) => s + d.ecart, 0) / touches.length) : null;
   const juste = manques === 0 && extras <= 1 && ecartMoyen !== null && ecartMoyen <= tolerance;
   return { juste, manques, extras, ecartMoyen, ecartSigne, details };
+}
+
+// Tenues : pour chaque attaque retrouvée dont la note dure au moins `minMs`, le doigt doit rester posé
+// la plus grande partie de la note, sans déborder sur la suite. `details` vient d'evaluerFrappe,
+// `relachesMs` donne l'instant où chaque frappe a été relâchée (même ordre que tapsMs).
+export function evaluerTenues(details, relachesMs, dureesMs, { minMs = 700, part = 0.6, margeMs = 250 } = {}) {
+  let jugees = 0, courtes = 0, longues = 0;
+  details.forEach((d, k) => {
+    if (d.indice === null || dureesMs[k] < minMs) return;
+    jugees += 1;
+    const tenu = relachesMs[d.indice] - d.tap;
+    if (tenu < part * dureesMs[k]) courtes += 1;
+    else if (tenu > dureesMs[k] + margeMs) longues += 1;
+  });
+  return { jugees, courtes, longues, juste: courtes === 0 && longues === 0 };
+}
+export function commentaireTenues(r) {
+  if (!r.jugees) return '';
+  if (r.juste) return 'Notes longues bien tenues.';
+  const parts = [];
+  if (r.courtes) parts.push(`${r.courtes} note${r.courtes > 1 ? 's' : ''} lâchée${r.courtes > 1 ? 's' : ''} trop tôt`);
+  if (r.longues) parts.push(`${r.longues} note${r.longues > 1 ? 's' : ''} tenue${r.longues > 1 ? 's' : ''} trop longtemps`);
+  return `${parts.join(', ')} : le doigt reste posé jusqu'à la note ou au silence qui suit.`;
+}
+
+// Latence de l'appareil (écouteurs sans fil, écran) : l'élève frappe sur le clic, on prend la médiane des
+// écarts au clic le plus proche. Les deux premières frappes (mise en route) sont ignorées.
+// null s'il y a trop peu de frappes ou si elles sont trop irrégulières pour en tirer un réglage.
+export function estimerLatence(clicsMs, tapsMs, { minFrappes = 6, dispersionMax = 60 } = {}) {
+  const ecarts = tapsMs.slice(2).map((t) => clicsMs.reduce((m, c) => (Math.abs(t - c) < Math.abs(m) ? t - c : m), Infinity)).filter(Number.isFinite);
+  if (ecarts.length < minFrappes) return null;
+  const tri = [...ecarts].sort((a, b) => a - b);
+  const med = (tab) => { const k = tab.length >> 1; return tab.length % 2 ? tab[k] : (tab[k - 1] + tab[k]) / 2; };
+  const latenceMs = Math.round(med(tri));
+  const dispersionMs = Math.round(med(tri.map((e) => Math.abs(e - latenceMs)).sort((a, b) => a - b)));
+  if (dispersionMs > dispersionMax) return null;
+  return { latenceMs, dispersionMs, n: ecarts.length };
 }
 
 // Bande de visualisation : repères des attaques attendues, points colorés selon l'écart des frappes.

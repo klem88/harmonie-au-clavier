@@ -27,3 +27,14 @@ test('clavier : liste vide → clavier nu', () => {
   const svg = clavierSvg([]);
   assert.equal((svg.match(/touche marquee/g) || []).length, 0);
 });
+
+test('clavier de réponse : une octave, touches plus hautes', () => {
+  const svg = clavierSvg([], { interactif: true, octaves: 1 });
+  assert.equal((svg.match(/<rect /g) || []).length, 12);
+  assert.ok(svg.includes('viewBox="0 0 154 100"'));
+  assert.ok(clavierSvg([]).includes('viewBox="0 0 308 72"'));
+  // sur une octave, les notes sont repliées par classe
+  const accord = clavierSvg([note('G'), note('B'), note('D')], { octaves: 1 });
+  const abs = [...accord.matchAll(/touche marquee[^>]*data-abs="(\d+)"/g)].map((m) => Number(m[1])).sort((a, b) => a - b);
+  assert.deepEqual(abs, [2, 7, 11]);
+});

@@ -215,7 +215,20 @@ textarea { width: 100%; min-height: 120px; font-family: ui-monospace, Menlo, Con
 .portee path.cle { fill: none; }
 .portee .alteration { font-family: var(--police); font-size: 17px; fill: var(--texte); }
 .portee .etiquette { font-family: var(--police); font-size: 11px; font-weight: 600; fill: var(--accent); }
-.clavier-reponse .clavier { max-height: 150px; }
+.clavier-reponse .clavier { max-height: 230px; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.clavier .touche.donnee { fill: var(--laiton); }
+.clavier .touche.choisie { fill: var(--accent); }
+
+/* Grille fixe et pavé d'accord */
+.choix.grille { grid-template-columns: 1fr 1fr; gap: 8px; }
+.choix.grille.serree { grid-template-columns: repeat(4, 1fr); }
+.choix.grille .btn { font-size: 1rem; min-height: 50px; padding: 6px 8px; }
+.choix.pave { gap: 8px; }
+.choix.pave .rang { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.choix.pave .rang.diese, .choix.pave .rang.bemol { grid-template-columns: repeat(5, 1fr); padding: 0 8%; }
+.choix.pave .rang.types { grid-template-columns: repeat(3, 1fr); padding: 0; margin-top: 8px; }
+.choix.pave .btn { font-size: 1.05rem; min-height: 48px; padding: 4px 2px; }
+.choix.pave .btn[aria-pressed="true"] { background: var(--accent-doux); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .clavier.cliquable .touche { cursor: pointer; }
 .clavier .touche.juste { fill: var(--ok); }
 .clavier .touche.faux { fill: var(--ko); }

@@ -29,6 +29,7 @@
     </label>
     <div class="pied">
       <button class="btn btn-lien" id="btn-progression">Voir ma progression</button>
+      <button class="btn btn-lien" id="btn-calibrage">Régler la latence de frappe</button>
       <p class="note-stockage" id="note-stockage"></p>
     </div>
   </section>
@@ -127,6 +128,16 @@
     <div class="note-chantee" id="test-note">–</div>
     <div class="jauge"><i id="test-niveau"></i></div>
     <p class="sous" id="test-fil"></p>
+  </section>
+
+  <section id="ecran-calibrage" hidden>
+    <div class="entete">
+      <h2>Latence de frappe</h2>
+      <button class="btn btn-lien" id="btn-calibrage-retour" style="width:auto">Accueil</button>
+    </div>
+    <p class="sous">Avec des écouteurs sans fil, le clic arrive en retard et tes frappes paraissent décalées. Frappe douze clics : l'app mesure l'écart et recale tes frappes. À refaire quand tu changes d'écouteurs.</p>
+    <p class="sous" id="calibrage-etat"></p>
+    <div class="choix pads" id="calibrage-zone"></div>
   </section>
 </div>
 <script type="module" src="src/interface.js"></script>

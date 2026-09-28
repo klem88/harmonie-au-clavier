@@ -1,6 +1,6 @@
 // Écrans et interactions. Seul module qui touche le DOM.
 
-import { DIMENSIONS, carte, melangerChoix } from './questions.js';
+import { DIMENSIONS, carte, melangerChoix, GRILLES, PAVE_ACCORD, nomDuPave, delaiSaisie } from './questions.js';
 import {
   REGLES, seuils, delaiBoite, normaliser, composerSeance, enregistrerReponse, cloreSeance, bilan, cartesDues,
   FileSeance, mediane, lireSauvegarde,
@@ -8,9 +8,11 @@ import {
 import { creerStockage } from './stockage.js';
 import { clavierSvg } from './clavier.js';
 import { creerLecteur, sequenceAudio, sequencePercussions, equiperPercussions } from './audio.js';
-import { cellule, onsetsMs, notationSvg, evaluerFrappe, commentaireFrappe, frappeSvg, U } from './rythme.js';
+import {
+  cellule, onsetsMs, tenuesMs, notationSvg, evaluerFrappe, commentaireFrappe, frappeSvg, evaluerTenues, commentaireTenues, estimerLatence, U,
+} from './rythme.js';
 import { creerMicro, evaluerChant, commentaireChant, midiDeFrequence } from './voix.js';
-import { nomFr } from './theorie.js';
+import { nomFr, nomLettre, note, TYPES_ACCORD } from './theorie.js';
 import { genererPiece, notesAttendues, sequencePiece, dureePieceMs } from './piece.js';
 import { genererPieceEnsemble, notesAJouer } from './ensemble.js';
 import { partitionSvg, geometriePartition, curseurA } from './partition.js';
@@ -19,7 +21,7 @@ import { candidatsPiece, trameEnsemble, amplitudesDeDb, verifierEnsemble, HARMON
 import { enregistrerPiece, etatDeblocageDechiffrage, ensembleOuvert, PARCOURS } from './dechiffrage.js';
 
 const $ = (id) => document.getElementById(id);
-const ECRANS = ['accueil', 'seance', 'bilan', 'progression', 'dechiffrage', 'test-micro'];
+const ECRANS = ['accueil', 'seance', 'bilan', 'progression', 'dechiffrage', 'test-micro', 'calibrage'];
 
 let etat = null;
 let stockage = null;
@@ -145,6 +147,8 @@ function rendreAccueil() {
         : bloque ? `Niv. ${bloque.suivant} : ${bloque.reussites}/${bloque.cible} réussites sur les ${bloque.fenetre} dernières pièces${bloque.mainsRequises && !bloque.mainsOk ? ` · et niveau ${bloque.mainsRequises} des deux mains` : ''}` : 'Tous les niveaux ouverts')));
   const notes = { artefact: 'Progression enregistrée en ligne.', local: 'Progression enregistrée dans ce navigateur.', memoire: 'Stockage indisponible : la progression ne sera pas conservée.' };
   $('note-stockage').textContent = notes[stockage.mode];
+  const latence = etat.prefs.latenceMs || 0;
+  $('btn-calibrage').textContent = latence ? `Latence de frappe : ${latence} ms · régler à nouveau` : 'Régler la latence de frappe';
   montrer('accueil');
 }
 
@@ -180,6 +184,7 @@ function prochaineQuestion() {
   if (c.frappe) { preparerFrappe(c); return; }
   if (c.chant) { preparerChant(c); return; }
   if (c.clavierReponse) { preparerClavier(c); return; }
+  if (c.saisie) { preparerSaisie(c); return; }
   const choix = melangerChoix(c);
   const zone = $('seance-choix');
   zone.replaceChildren();
@@ -197,16 +202,19 @@ function cellulesFrappe(c) {
     const cell = cellule(m.texte, { temps: m.temps, swing: !!m.swing });
     const o = onsetsMs(cell, c.frappe.bpm);
     const mesureMs = (cell.duree * 60000) / c.frappe.bpm / 12;
-    const attendus = [];
-    for (let r = 0; r < c.frappe.mesures / cell.mesures; r++) attendus.push(...o.map((t) => Math.round(t + r * mesureMs)));
-    return { nom: m.nom || null, cell, attendus };
+    const tenuesCell = tenuesMs(cell, c.frappe.bpm);
+    const attendus = [], durees = [];
+    for (let r = 0; r < c.frappe.mesures / cell.mesures; r++) { attendus.push(...o.map((t) => Math.round(t + r * mesureMs))); durees.push(...tenuesCell); }
+    return { nom: m.nom || null, cell, attendus, durees };
   });
 }
 function preparerFrappe(c) {
   annulerFrappe();
   const mains = cellulesFrappe(c);
   const enonce = $('seance-enonce');
-  for (const m of mains) {
+  // imitation : rien n'est écrit, on écoute ; le bouton revient après une pause ou un nouvel essai
+  if (c.frappe.cachee && !$('btn-ecouter')) enonce.append(el('button', { class: 'btn btn-ecouter', type: 'button', id: 'btn-ecouter', onclick: () => ecouter(c) }, '▶ Écouter'));
+  for (const m of c.frappe.cachee ? [] : mains) {
     enonce.append(el('div', { class: 'notation-boite' }, ...(m.nom ? [el('span', { class: 'eyebrow' }, m.nom)] : []), el('div', { html: notationSvg(m.cell) })));
   }
   const zone = $('seance-choix');
@@ -224,24 +232,40 @@ function lancerFrappe(c, mains) {
   const seq = sequencePercussions({ bpm, temps, mesures, decompte: 1 });
   const origine = lecteur.jouerPercussions(seq.evenements) + seq.origineMs;
   const taps = mains.map(() => []);
+  const relaches = mains.map(() => []);
+  const latence = etat.prefs.latenceMs || 0;
+  const instant = () => Math.round(performance.now() - origine - latence);
   const zone = $('seance-choix');
   zone.className = `choix pads${mains.length > 1 ? ' deux' : ''}`;
   const etatEl = el('p', { class: 'sous centre', id: 'frappe-etat' }, 'Décompte…');
   zone.replaceChildren(etatEl);
   mains.forEach((m, i) => {
-    const pad = el('button', { class: 'pad', type: 'button' }, m.nom || 'Frappe ici');
+    const pad = el('button', { class: 'pad', type: 'button' }, m.nom || (c.frappe.tenue ? 'Appuie et tiens ici' : 'Frappe ici'));
+    const doigts = new Map(); // pointeur → rang de sa frappe, pour noter l'instant où il se relève
     pad.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
-      taps[i].push(Math.round(performance.now() - origine));
-      pad.classList.add('touche'); setTimeout(() => pad.classList.remove('touche'), 90);
+      try { pad.setPointerCapture(ev.pointerId); } catch { /* pointeur déjà parti */ }
+      doigts.set(ev.pointerId, taps[i].length);
+      taps[i].push(instant());
+      relaches[i].push(null);
+      pad.classList.add('touche');
+      if (!c.frappe.tenue) setTimeout(() => pad.classList.remove('touche'), 90);
     });
+    const lever = (ev) => {
+      if (!doigts.has(ev.pointerId)) return;
+      relaches[i][doigts.get(ev.pointerId)] = instant();
+      doigts.delete(ev.pointerId);
+      if (c.frappe.tenue && !doigts.size) pad.classList.remove('touche');
+    };
+    pad.addEventListener('pointerup', lever);
+    pad.addEventListener('pointercancel', lever);
     zone.append(pad);
   });
   const battement = 60000 / bpm;
   const minuteurs = [];
   for (let t = 0; t < temps; t++) minuteurs.push(setTimeout(() => { etatEl.textContent = `Décompte : ${t + 1}`; }, seq.origineMs - (temps - t) * battement));
   minuteurs.push(setTimeout(() => { etatEl.textContent = 'Frappe !'; }, seq.origineMs));
-  minuteurs.push(setTimeout(() => terminerFrappe(c, mains, taps), seq.dureeMs + 300));
+  minuteurs.push(setTimeout(() => terminerFrappe(c, mains, taps, relaches.map((r) => r.map((t) => t ?? instant()))), seq.dureeMs + 300));
   seance.frappe = { minuteurs, c, mains };
 }
 function annulerFrappe() {
@@ -250,10 +274,11 @@ function annulerFrappe() {
   if (lecteur?.arreterPercussions) lecteur.arreterPercussions();
   seance.frappe = null;
 }
-function terminerFrappe(c, mains, taps) {
+function terminerFrappe(c, mains, taps, relaches) {
   seance.frappe = null;
   const resultats = mains.map((m, i) => evaluerFrappe(m.attendus, taps[i]));
-  const juste = resultats.every((r) => r.juste);
+  const tenues = c.frappe.tenue ? mains.map((m, i) => evaluerTenues(resultats[i].details, relaches[i], m.durees)) : [];
+  const juste = resultats.every((r) => r.juste) && tenues.every((t) => t.juste);
   const ms = Math.max(...resultats.map((r) => r.ecartMoyen ?? 999));
   const r = enregistrer(c, juste, ms);
   const zone = $('seance-correction');
@@ -267,11 +292,11 @@ function terminerFrappe(c, mains, taps) {
     el('span', {}, `${ms} ms`)));
   mains.forEach((m, i) => {
     const longueur = (c.frappe.mesures * m.cell.temps * 60000) / c.frappe.bpm;
-    zone.append(el('p', { class: 'explication' }, `${m.nom ? m.nom + ' : ' : ''}${commentaireFrappe(resultats[i])}`), el('div', { html: frappeSvg(resultats[i], longueur, taps[i]) }));
+    zone.append(el('p', { class: 'explication' }, `${m.nom ? m.nom + ' : ' : ''}${commentaireFrappe(resultats[i])}${tenues[i] ? ` ${commentaireTenues(tenues[i])}` : ''}`), el('div', { html: frappeSvg(resultats[i], longueur, taps[i]) }));
   });
   $('seance-choix').replaceChildren();
   if (juste) {
-    zone.append(el('p', { class: 'explication' }, c.explication),
+    zone.append(el('p', { class: 'explication' }, c.explication), ...(c.frappe.cachee ? [el('div', { html: c.svgCorrection })] : []),
       el('p', { class: 'boite-info' },
         rapide ? `Boîte ${r.boiteAvant} → ${r.boiteApres} sur ${REGLES.boiteMax} · ${quandRevient(delaiBoite(r.boiteApres))}`
           : `Carte maintenue en boîte ${r.boiteApres} · ${quandRevient(delaiBoite(r.boiteApres))}`));
@@ -423,7 +448,111 @@ function repondreClavier(classe) {
   if (!juste) for (const t of zone.querySelectorAll(`.touche[data-classe="${classe}"]`)) t.classList.add('faux');
   zone.querySelector('.clavier')?.classList.remove('cliquable');
   const texteChoisi = NOMS_CLASSE[classe];
-  afficherCorrection(c, juste, ms, enregistrer(c, juste, ms), { reponseDonnee: texteChoisi });
+  afficherCorrection(c, juste, ms, enregistrer(c, juste, ms), { reponseDonnee: `tu as touché ${texteChoisi}` });
+}
+
+// ---------- Saisie : clavier, grille fixe, pavé d'accord ----------
+function preparerSaisie(c) {
+  if (c.saisie.type === 'grille') preparerGrille(c);
+  else if (c.saisie.type === 'accord') preparerPave(c);
+  else preparerTouches(c);
+}
+// Le temps du geste (plusieurs touches, deux boutons) est retiré du temps de réponse.
+function conclureSaisie(c, juste, reponseDonnee) {
+  const ms = Math.max(0, Math.round(performance.now() - seance.t0) - delaiSaisie(c));
+  afficherCorrection(c, juste, ms, enregistrer(c, juste, ms), { reponseDonnee });
+}
+const saisieFinie = () => $('seance-correction').hidden === false;
+
+function preparerGrille(c) {
+  const choix = GRILLES[c.saisie.grille];
+  const zone = $('seance-choix');
+  zone.className = `choix grille${choix.every((t) => t.length <= 6) ? ' serree' : ''}`;
+  zone.replaceChildren(...choix.map((t) => el('button', { class: 'btn', type: 'button', 'data-choix': t, onclick: (ev) => repondre(t, ev.currentTarget) }, t)));
+}
+
+function preparerPave(c) {
+  const zone = $('seance-choix');
+  zone.className = 'choix pave';
+  const choisi = { fond: null, type: null };
+  const boutons = { fond: [], type: [] };
+  const choisir = (quoi, valeur, bouton) => {
+    if (saisieFinie()) return;
+    choisi[quoi] = valeur;
+    for (const b of boutons[quoi]) b.setAttribute('aria-pressed', String(b === bouton));
+    if (choisi.fond === null || choisi.type === null) return;
+    const nom = nomDuPave(choisi.fond, choisi.type);
+    const juste = nom === c.reponse;
+    for (const b of zone.querySelectorAll('button')) b.disabled = true;
+    for (const b of zone.querySelectorAll('[aria-pressed="true"]')) b.classList.add(juste ? 'juste' : 'faux');
+    conclureSaisie(c, juste, juste ? null : `tu as répondu ${nom}`);
+  };
+  const bouton = (quoi, valeur, texte) => {
+    const b = el('button', { class: 'btn', type: 'button', 'aria-pressed': 'false', onclick: () => choisir(quoi, valeur, b) }, texte);
+    boutons[quoi].push(b);
+    return b;
+  };
+  zone.replaceChildren(
+    el('p', { class: 'sous centre' }, 'Fondamentale, puis qualité'),
+    ...PAVE_ACCORD.fondamentales.map((rang) => el('div', { class: `rang ${['naturel', 'diese', 'bemol'][PAVE_ACCORD.fondamentales.indexOf(rang)]}` }, ...rang.map((f) => bouton('fond', f, nomLettre(note(f)))))),
+    el('div', { class: 'rang types' }, ...PAVE_ACCORD.types.map((t) => bouton('type', t, TYPES_ACCORD[t].suffixe || 'majeur'))),
+  );
+}
+
+const CONSIGNES_TOUCHES = { une: 'Touche la note sur le clavier', ensemble: 'Touche toutes les notes, puis valide', suite: 'Touche les notes dans l’ordre' };
+function preparerTouches(c) {
+  const { mode, classes, donnees = [] } = c.saisie;
+  const zone = $('seance-choix');
+  zone.className = 'choix';
+  const boite = el('div', { class: 'clavier-reponse', html: clavierSvg([], { interactif: true, octaves: mode === 'une' ? 1 : 2 }) });
+  const fil = el('p', { class: 'sous centre' }, CONSIGNES_TOUCHES[mode]);
+  zone.replaceChildren(boite, fil);
+  const touches = [...boite.querySelectorAll('.touche')];
+  const classeDe = (t) => Number(t.dataset.classe);
+  // touche donnée par l'énoncé : marquée une seule fois, à l'octave du bas
+  for (const d of donnees) touches.find((t) => classeDe(t) === d)?.classList.add('donnee');
+  const suite = [];
+  const suiteTouches = []; // les touches elles-mêmes, pour les colorer une à une
+  const conclure = (jouees) => {
+    const juste = mode === 'suite'
+      ? jouees.length === classes.length && jouees.every((x, i) => x === classes[i])
+      : new Set(jouees).size === new Set(classes).size && jouees.every((x) => classes.includes(x));
+    for (const t of mode === 'suite' ? [] : touches) {
+      const attendue = classes.includes(classeDe(t));
+      const jouee = mode === 'ensemble' ? t.classList.contains('choisie') : jouees.includes(classeDe(t));
+      t.classList.remove('choisie', 'donnee');
+      // en mode ensemble, seules les touches réellement touchées sont jugées ; la correction montre le reste
+      if (attendue && (mode !== 'ensemble' || jouee)) t.classList.add('juste');
+      else if (jouee) t.classList.add('faux');
+    }
+    for (const t of touches) t.classList.remove('choisie', 'donnee');
+    suiteTouches.forEach((t, i) => t.classList.add(classeDe(t) === classes[i] ? 'juste' : 'faux'));
+    boite.querySelector('.clavier').classList.remove('cliquable');
+    for (const b of zone.querySelectorAll('button')) b.disabled = true;
+    const noms = jouees.map((x) => NOMS_CLASSE[x]).join(mode === 'suite' ? ' – ' : ' ');
+    conclureSaisie(c, juste, juste ? null : jouees.length ? `tu as touché ${noms}` : 'tu n’as touché aucune note');
+  };
+  for (const t of touches) {
+    t.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      if (saisieFinie()) return;
+      if (mode === 'une') conclure([classeDe(t)]);
+      else if (mode === 'ensemble') t.classList.toggle('choisie');
+      else {
+        suite.push(classeDe(t));
+        suiteTouches.push(t);
+        t.classList.add('choisie'); setTimeout(() => t.classList.remove('choisie'), 250);
+        fil.textContent = suite.map((x) => NOMS_CLASSE[x]).join(' – ');
+        if (suite.length === classes.length) conclure([...suite]);
+      }
+    });
+  }
+  if (mode === 'ensemble') {
+    zone.append(el('button', { class: 'btn btn-principal', type: 'button', onclick: () => conclure([...new Set(touches.filter((t) => t.classList.contains('choisie')).map(classeDe))]) },
+      c.dimension === 'A' ? 'Valider (aucune touche = aucune altération)' : 'Valider'));
+  } else if (mode === 'suite') {
+    zone.append(el('button', { class: 'btn btn-second', type: 'button', onclick: () => { suite.length = 0; suiteTouches.length = 0; fil.textContent = CONSIGNES_TOUCHES.suite; } }, 'Effacer'));
+  }
 }
 
 function afficherCorrection(c, juste, ms, r, { reponseDonnee = null } = {}) {
@@ -448,7 +577,7 @@ function afficherCorrection(c, juste, ms, r, { reponseDonnee = null } = {}) {
   } else {
     seance.file.reinserer(c.id);
     zone.append(
-      el('div', { class: 'verdict' }, el('span', {}, `Non : ${c.reponse}${reponseDonnee ? ` (tu as touché ${reponseDonnee})` : ''}`), el('span', {}, secondes(ms))),
+      el('div', { class: 'verdict' }, el('span', {}, `Non : ${c.reponse}${reponseDonnee ? ` (${reponseDonnee})` : ''}`), el('span', {}, secondes(ms))),
       el('p', { class: 'explication' }, c.explication),
       el('p', { class: 'boite-info' }, `Carte remise en boîte 0 · elle revient dans cette séance`),
     );
@@ -934,6 +1063,55 @@ function quitterTestMicro() {
   preparerPiece();
 }
 
+// ---------- Latence de frappe ----------
+// Écouteurs sans fil, écran lent : le clic arrive en retard et toutes les frappes paraissent décalées.
+// L'élève frappe sur le clic ; la médiane des écarts est retirée de ses frappes par la suite.
+const CALIBRAGE = { bpm: 80, temps: 4, mesures: 3 };
+let calibrage = null;
+function ouvrirCalibrage() {
+  arreterCalibrage();
+  $('calibrage-etat').textContent = etat.prefs.latenceMs ? `Réglage actuel : ${etat.prefs.latenceMs} ms.` : 'Aucun réglage pour l’instant.';
+  $('calibrage-zone').replaceChildren(el('button', { class: 'btn btn-principal', type: 'button', onclick: lancerCalibrage }, '▶ Démarrer'));
+  montrer('calibrage');
+}
+function arreterCalibrage() {
+  if (!calibrage) return;
+  clearTimeout(calibrage.minuteur);
+  if (lecteur?.arreterPercussions) lecteur.arreterPercussions();
+  calibrage = null;
+}
+function lancerCalibrage() {
+  lecteur ||= creerLecteur();
+  if (!lecteur) { $('calibrage-etat').textContent = 'Son indisponible sur cet appareil.'; return; }
+  if (!lecteur.jouerPercussions) equiperPercussions(lecteur);
+  const seq = sequencePercussions({ ...CALIBRAGE, decompte: 0 });
+  const origine = lecteur.jouerPercussions(seq.evenements);
+  const taps = [];
+  const pad = el('button', { class: 'pad', type: 'button' }, 'Frappe sur chaque clic');
+  pad.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    taps.push(Math.round(performance.now() - origine));
+    pad.classList.add('touche'); setTimeout(() => pad.classList.remove('touche'), 90);
+  });
+  $('calibrage-etat').textContent = 'Frappe sur chaque clic, sans chercher à anticiper.';
+  $('calibrage-zone').replaceChildren(pad);
+  calibrage = { minuteur: setTimeout(() => terminerCalibrage(seq.evenements.map((e) => e.tMs), taps), seq.dureeMs + 300) };
+}
+function terminerCalibrage(clics, taps) {
+  calibrage = null;
+  const r = estimerLatence(clics, taps);
+  const boutons = [el('button', { class: 'btn btn-second', type: 'button', onclick: lancerCalibrage }, '↻ Recommencer')];
+  if (!r) $('calibrage-etat').textContent = 'Frappes trop rares ou trop irrégulières pour en tirer un réglage : recommence en frappant chaque clic.';
+  else {
+    etat.prefs.latenceMs = Math.abs(r.latenceMs) < 15 ? 0 : r.latenceMs;
+    sauver();
+    $('calibrage-etat').textContent = `Écart médian : ${r.latenceMs} ms sur ${r.n} frappes (dispersion ${r.dispersionMs} ms). `
+      + (etat.prefs.latenceMs ? `Tes frappes seront recalées de ${etat.prefs.latenceMs} ms.` : 'Aucun recalage nécessaire.');
+  }
+  if (etat.prefs.latenceMs) boutons.push(el('button', { class: 'btn btn-lien', type: 'button', onclick: () => { etat.prefs.latenceMs = 0; sauver(); ouvrirCalibrage(); } }, 'Supprimer le réglage'));
+  $('calibrage-zone').replaceChildren(...boutons);
+}
+
 // ---------- Démarrage ----------
 async function obtenirDb() {
   try {
@@ -953,6 +1131,8 @@ async function demarrer() {
 
 $('btn-seance').addEventListener('click', () => demarrerSeance());
 $('btn-progression').addEventListener('click', rendreProgression);
+$('btn-calibrage').addEventListener('click', ouvrirCalibrage);
+$('btn-calibrage-retour').addEventListener('click', () => { arreterCalibrage(); rendreAccueil(); });
 $('btn-accueil-prog').addEventListener('click', rendreAccueil);
 $('btn-accueil-bilan').addEventListener('click', rendreAccueil);
 $('btn-continuer').addEventListener('click', prochaineQuestion);
@@ -964,6 +1144,7 @@ $('btn-reprendre').addEventListener('click', reprendre);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     mettreEnPause();
+    if (calibrage) ouvrirCalibrage();
     // une pièce en cours est abandonnée : on revient à la préparation
     if (dech && (dech.phase === 'jeu' || dech.phase === 'preparation') && !$('ecran-dechiffrage').hidden) preparerPiece();
     // le micro se ferme en arrière-plan ; il sera rouvert au prochain « Je suis prêt » (geste)

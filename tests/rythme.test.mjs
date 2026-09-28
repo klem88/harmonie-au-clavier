@@ -101,3 +101,46 @@ test('evaluerFrappe', () => {
   assert.match(commentaireFrappe(evaluerFrappe(attendus, [40, 540, 1040, 1540])), /en retard/);
   assert.match(commentaireFrappe(evaluerFrappe(attendus, [10, 520, 1530])), /1 attaque manquée/);
 });
+
+test('tenues : durée sonore de chaque attaque, liaisons comprises', async () => {
+  const { tenues, tenuesMs } = await import('../src/rythme.js');
+  assert.deepEqual(tenues(cellule('b n n')), [24, 12, 12]);
+  assert.deepEqual(tenues(cellule('n c _c n c c')), [12, 12, 12, 6, 6]);
+  assert.deepEqual(tenues(cellule('n -n b')), [12, 24]);
+  assert.deepEqual(tenuesMs(cellule('b n n'), 80), [1500, 750, 750]);
+});
+
+test('evaluerTenues : doigt levé trop tôt, tenu trop longtemps', async () => {
+  const { evaluerTenues, commentaireTenues } = await import('../src/rythme.js');
+  const attendus = [0, 1500, 2250];
+  const durees = [1500, 750, 750];
+  const f = evaluerFrappe(attendus, [10, 1490, 2260]);
+  assert.deepEqual(f.details.map((d) => d.indice), [0, 1, 2]);
+  let r = evaluerTenues(f.details, [1400, 2200, 2950], durees);
+  assert.deepEqual(r, { jugees: 3, courtes: 0, longues: 0, juste: true });
+  assert.equal(commentaireTenues(r), 'Notes longues bien tenues.');
+  // blanche lâchée au bout d'un temps
+  r = evaluerTenues(f.details, [700, 2200, 2950], durees);
+  assert.equal(r.courtes, 1);
+  assert.equal(r.juste, false);
+  assert.match(commentaireTenues(r), /1 note lâchée trop tôt/);
+  // dernière noire tenue bien après sa fin
+  r = evaluerTenues(f.details, [1400, 2200, 3600], durees);
+  assert.equal(r.longues, 1);
+  // les notes courtes ne sont pas jugées, une attaque manquée non plus
+  assert.equal(evaluerTenues(f.details, [20, 1500, 2270], [375, 375, 375]).jugees, 0);
+  const g = evaluerFrappe(attendus, [10, 2260]);
+  assert.equal(evaluerTenues(g.details, [1400, 2950], durees).jugees, 2);
+});
+
+test('estimerLatence : médiane des écarts au clic, frappes irrégulières refusées', async () => {
+  const { estimerLatence } = await import('../src/rythme.js');
+  const clics = Array.from({ length: 12 }, (_, i) => i * 750);
+  const r = estimerLatence(clics, clics.map((c, i) => c + 180 + (i % 3) * 5));
+  assert.equal(r.latenceMs, 185);
+  assert.equal(r.n, 10);
+  assert.ok(r.dispersionMs <= 5);
+  assert.equal(estimerLatence(clics, clics.map((c) => c - 30)).latenceMs, -30);
+  assert.equal(estimerLatence(clics, [0, 750, 1500, 2250]), null);
+  assert.equal(estimerLatence(clics, clics.map((c, i) => c + (i % 2 ? 250 : -100))), null);
+});

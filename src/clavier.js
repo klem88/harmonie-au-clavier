@@ -1,12 +1,15 @@
-// Petit clavier SVG de 2 octaves (do → si) qui surligne une liste de notes, en ordre montant.
+// Petit clavier SVG (do → si, 2 octaves par défaut) qui surligne une liste de notes, en ordre montant.
+// Interactif, il sert à répondre : les touches sont plus hautes, et une seule octave les rend plus larges.
 
 import { classe, nomFr } from './theorie.js';
 
 const BLANCHES = [0, 2, 4, 5, 7, 9, 11];         // classes des touches blanches
 const NOIRES = { 1: 0, 3: 1, 6: 3, 8: 4, 10: 5 }; // classe → index de la blanche qui précède
-const L = 22, H = 72, LN = 13, HN = 44;
+const L = 22, LN = 13;
 
-export function clavierSvg(notes, { interactif = false } = {}) {
+export function clavierSvg(notes, { interactif = false, octaves = 2 } = {}) {
+  const H = interactif ? 100 : 72;
+  const HN = interactif ? 62 : 44;
   // Position absolue (0..23) de chaque note, en montant à partir de la première.
   const marques = new Map();
   let prec = null;
@@ -15,12 +18,12 @@ export function clavierSvg(notes, { interactif = false } = {}) {
     let abs;
     if (prec === null) abs = c;
     else { const saut = (c - (prec % 12) + 12) % 12 || 12; abs = prec + saut; }
-    if (abs >= 24) abs -= 12;
+    while (abs >= 12 * octaves) abs -= 12;
     marques.set(abs, nomFr(n));
     prec = abs;
   }
   const blanches = [], noires = [], textes = [];
-  for (let o = 0; o < 2; o++) {
+  for (let o = 0; o < octaves; o++) {
     BLANCHES.forEach((c, i) => {
       const x = (o * 7 + i) * L;
       const abs = o * 12 + c;
@@ -36,5 +39,5 @@ export function clavierSvg(notes, { interactif = false } = {}) {
       if (m) textes.push(`<text x="${x + LN / 2}" y="${HN - 5}" text-anchor="middle" class="etiquette noire">${marques.get(abs)}</text>`);
     }
   }
-  return `<svg class="clavier${interactif ? ' cliquable' : ''}" viewBox="0 0 ${14 * L} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Clavier : ${notes.map(nomFr).join(' ')}">${blanches.join('')}${noires.join('')}${textes.join('')}</svg>`;
+  return `<svg class="clavier${interactif ? ' cliquable' : ''}" viewBox="0 0 ${octaves * 7 * L} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Clavier : ${notes.map(nomFr).join(' ')}">${blanches.join('')}${noires.join('')}${textes.join('')}</svg>`;
 }

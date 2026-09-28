@@ -48,7 +48,7 @@ export function etatInitial() {
     niveaux: Object.fromEntries(Object.keys(DIMENSIONS).map((d) => [d, 1])),
     statsNiveaux: {},
     seances: [],
-    prefs: { silence: false, clic: false },
+    prefs: { silence: false, clic: false, latenceMs: 0 },
     dechiffrage: etatDechiffrageInitial(),
   };
 }

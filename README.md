@@ -23,12 +23,12 @@ node build.mjs         # assemble dist/harmonie.html
 | Fichier | Rôle |
 |---|---|
 | `src/theorie.js` | Notes orthographiées, intervalles, accords, gammes, armures, degrés |
-| `src/questions.js` | Catalogue des cartes (énoncé, réponse, 3 pièges, explication, notes) |
+| `src/questions.js` | Catalogue des cartes (énoncé, réponse, 3 pièges, explication, notes) ; `saisie` dit comment on répond : clavier (une touche, plusieurs, suite), grille fixe ou pavé d'accord, sinon 4 choix |
 | `src/progression.js` | Boîtes de répétition espacée, déblocage des niveaux, composition de séance |
 | `src/stockage.js` | Sauvegarde : base de l'artefact claude.ai, sinon localStorage, sinon mémoire |
-| `src/clavier.js` | Clavier SVG 2 octaves qui surligne des notes |
+| `src/clavier.js` | Clavier SVG (1 ou 2 octaves) qui surligne des notes et sert à répondre |
 | `src/audio.js` | Séquences audio, métronome et percussions, lecteur Web Audio |
-| `src/rythme.js` | Cellules rythmiques, comptage, notation SVG, évaluation des frappes |
+| `src/rythme.js` | Cellules rythmiques, comptage, notation SVG, évaluation des frappes et des notes tenues, mesure de la latence |
 | `src/portee.js` | Portée en clé de sol / fa, armures, dessin SVG |
 | `src/voix.js` | Détection de hauteur, évaluation du chant, micro |
 | `src/piece.js` | Déchiffrage : génération de pièces reproductibles (graine) |

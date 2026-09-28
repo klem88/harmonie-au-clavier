@@ -66,6 +66,19 @@ const tons = (i) => {
   return d % 2 ? (s ? `${s} ½` : '½ ton') : s;
 };
 
+// ---------- Saisie de la réponse ----------
+// Sans `saisie`, la carte propose 4 choix (la réponse et ses pièges). Avec, l'élève construit sa réponse :
+//  clavier : touches à toucher, comparées par classe de hauteur. Mode « une » (réponse immédiate),
+//            « ensemble » (accord, armure : on valide) ou « suite » (dans l'ordre) ; `donnees` = touches déjà marquées.
+//  grille  : toujours les mêmes boutons (GRILLES), pour ne pas répondre par élimination.
+//  accord  : fondamentale puis qualité (PAVE_ACCORD).
+// Les pièges restent sur les cartes : ils servent aux explications et aux tests.
+const uneTouche = (n) => ({ type: 'clavier', mode: 'une', classes: [classe(n)] });
+const touchesEnsemble = (notes) => ({ type: 'clavier', mode: 'ensemble', classes: notes.map(classe) });
+const touchesSuite = (notes, donnees = []) => ({ type: 'clavier', mode: 'suite', classes: notes.map(classe), donnees: donnees.map(classe) });
+const grille = (nom) => ({ type: 'grille', grille: nom });
+const SAISIE_ACCORD = { type: 'accord' };
+
 const cartes = [];
 function ajouter(c) { cartes.push(c); }
 
@@ -78,7 +91,8 @@ function cartesArmure(niv, t) {
     reponse: texteArmure(n),
     pieges: piegesDistincts([texteArmure(n + 1), texteArmure(n - 1), texteArmure(-n)], texteArmure(n), VIVIER_ARMURES),
     explication: `${tonMaj(t)} : ${detailArmure(t)}. Ordre des dièses : fa do sol ré la mi si ; des bémols : si mi la ré sol do fa.`,
-    notes: null,
+    notes: n === 0 ? null : armure(N(t)).alterations,
+    saisie: touchesEnsemble(armure(N(t)).alterations),
   });
   const voisins = TONALITES.filter((x) => Math.abs(armure(N(x)).nombre - n) === 1 || armure(N(x)).nombre === -n);
   let regle;
@@ -92,7 +106,8 @@ function cartesArmure(niv, t) {
     reponse: tonMaj(t),
     pieges: piegesDistincts(voisins.map(tonMaj), tonMaj(t), VIVIER_TONALITES),
     explication: `${detailArmure(t)} = ${tonMaj(t)} : ${regle}.`,
-    notes: null,
+    notes: [N(t)],
+    saisie: uneTouche(N(t)),
   });
 }
 for (const t of TONALITES) cartesArmure(Math.abs(armure(N(t)).nombre) <= 3 ? 1 : 2, t);
@@ -107,7 +122,8 @@ for (const t of TONALITES) {
     reponse: `${fr(rel)} mineur`,
     pieges: piegesDistincts([tonMin(t), ...voisins], `${fr(rel)} mineur`, MINEURES.map(tonMin)),
     explication: `La relative mineure est une tierce mineure sous la tonique (le VIe degré) : ${fr(N(t))} → ${fr(rel)}. Même armure : ${detailArmure(t)}.`,
-    notes: null,
+    notes: [rel],
+    saisie: uneTouche(rel),
   });
 }
 for (const t of ['A', 'E', 'B', 'F#', 'D', 'G', 'C', 'F']) {
@@ -119,7 +135,8 @@ for (const t of ['A', 'E', 'B', 'F#', 'D', 'G', 'C', 'F']) {
     reponse: texteArmure(n),
     pieges: piegesDistincts([texteArmure(n + 1), texteArmure(n - 1), texteArmure(-n), texteArmure(armure(N(t)).nombre)], texteArmure(n), VIVIER_ARMURES),
     explication: `${tonMin(t)} est la relative de ${fr(relMaj)} majeur (une tierce mineure au-dessus) : ${detailArmure(t, 'mineur')}.`,
-    notes: null,
+    notes: n === 0 ? null : armure(N(t), 'mineur').alterations,
+    saisie: touchesEnsemble(armure(N(t), 'mineur').alterations),
   });
 }
 
@@ -132,7 +149,8 @@ for (const r of TOUTES) {
     reponse: fr(sup),
     pieges: piegesDistincts([fr(transposer(n, 'P4')), enh(sup), fr(transposer(n, 'd5')), fr(transposer(n, 'A5'))], fr(sup), VIVIER_NOTES),
     explication: `Quinte juste = 3 tons ½ : ${fr(n)} → ${fr(sup)}. Sur le cycle des quintes, on avance d'un cran (un ♯ de plus ou un ♭ de moins).`,
-    notes: null,
+    notes: [n, sup],
+    saisie: uneTouche(sup),
   });
   ajouter({
     id: `A3:${r}:quinteInf`, dimension: 'A', niveau: 3,
@@ -140,7 +158,8 @@ for (const r of TOUTES) {
     reponse: fr(inf),
     pieges: piegesDistincts([fr(sup), enh(inf), fr(transposer(n, 'A4')), fr(transposer(n, 'M3'))], fr(inf), VIVIER_NOTES),
     explication: `Une quinte en dessous = une quarte au-dessus : ${fr(n)} → ${fr(inf)}. Sur le cycle, on recule d'un cran (un ♭ de plus ou un ♯ de moins).`,
-    notes: null,
+    notes: [n, inf],
+    saisie: uneTouche(inf),
   });
   const g = gammeMajeure(n);
   for (const [deg, nom] of [[4, 'IV (sous-dominante)'], [5, 'V (dominante)']]) {
@@ -151,7 +170,8 @@ for (const r of TOUTES) {
       reponse: rep,
       pieges: piegesDistincts([fr(g[deg === 4 ? 4 : 3]), enh(g[deg - 1]), fr(g[1]), fr(g[5])], rep, VIVIER_NOTES),
       explication: `Gamme de ${tonMaj(r)} : ${listeNotes(g)}. Le ${deg === 4 ? 'IV est une quinte en dessous' : 'V est une quinte au-dessus'} de la tonique : ${rep}.`,
-      notes: null,
+      notes: [n, g[deg - 1]],
+      saisie: uneTouche(g[deg - 1]),
     });
   }
 }
@@ -190,6 +210,7 @@ function cartesAccord(niv, r, type) {
     pieges: piegesDistincts([autres[0], notesMalOrthographiees(notes), autres[1], autres[2]], rep, vivierNotes),
     explication: `${explicationAccord(fond, type)} ${nomAccord(fond, AUTRES_TYPES[type][0])} aurait ${listeNotes(notesAccord(fond, AUTRES_TYPES[type][0]))}.`,
     notes,
+    saisie: touchesEnsemble(notes),
   });
   const nom = nomAccord(fond, type);
   const relatif = type === 'maj' ? nomAccord(transposer(fond, 'M6'), 'min') : type === 'min' ? nomAccord(transposer(fond, 'm3'), 'maj') : null;
@@ -200,6 +221,7 @@ function cartesAccord(niv, r, type) {
     pieges: piegesDistincts([nomAccord(fond, AUTRES_TYPES[type][0]), relatif, ...AUTRES_TYPES[type].slice(1).map((t) => nomAccord(fond, t))], nom, TOUTES.map((x) => nomAccord(N(x), type))),
     explication: `${explicationAccord(fond, type)} C'est un accord ${TYPES_ACCORD[type].libelle}.`,
     notes,
+    saisie: SAISIE_ACCORD,
   });
 }
 for (const r of COURANTES) for (const t of ['maj', 'min']) cartesAccord(1, r, t);
@@ -249,6 +271,7 @@ function cartesGuides(niv, r, type) {
     pieges: piegesDistincts([fr(autreTierce), fr(quinte), enh(tierce), fr(septieme)], fr(tierce), VIVIER_NOTES),
     explication: `${nom} = ${listeNotes(notes)}. Tierce ${iv[1] === 'M3' ? 'majeure = 2 tons' : 'mineure = 1 ton ½'} au-dessus de ${fr(fond)} : ${fr(tierce)}.${typeTierce ? ` ${nomAccord(fond, typeTierce)} aurait ${fr(autreTierce)}.` : ''}`,
     notes,
+    saisie: uneTouche(tierce),
   });
   ajouter({
     id: `C${niv}:${r}:${type}:septieme`, dimension: 'C', niveau: niv,
@@ -257,6 +280,7 @@ function cartesGuides(niv, r, type) {
     pieges: piegesDistincts([fr(autreSept), fr(sixte), enh(septieme), fr(quinte)], fr(septieme), VIVIER_NOTES),
     explication: `${nom} = ${listeNotes(notes)}. 7e ${iv[3] === 'M7' ? 'majeure = ½ ton' : 'mineure = 1 ton'} sous l'octave de ${fr(fond)} : ${fr(septieme)}.${typeSept ? ` ${nomAccord(fond, typeSept)} aurait ${fr(autreSept)}.` : ''}`,
     notes,
+    saisie: uneTouche(septieme),
   });
 }
 for (const r of COURANTES) for (const t of ['maj7', '7', 'm7']) cartesGuides(1, r, t);
@@ -281,6 +305,7 @@ for (const t of TOUTES) {
       pieges: piegesDistincts([fr(sept), fr(transposer(sept, 'M2')), enh(cible), fr(transposer(cible, 'm2'))], fr(cible), VIVIER_NOTES),
       explication: `La 7e de ${nomAccord(p.de.fond, p.de.type)} (${fr(sept)}) descend d'un demi-ton vers la 3ce de ${nomAccord(p.vers.fond, p.vers.type)} (${fr(cible)}). C'est la ligne des notes guides : 7e → 3ce, et la 3ce reste pour devenir la 7e suivante.`,
       notes: [...nDe, cible],
+      saisie: uneTouche(cible),
     });
   }
 }
@@ -301,6 +326,7 @@ for (const t of COURANTES) {
       pieges: piegesDistincts([nomDeg(t, d === 7 ? 6 : d + 1), nomDeg(t, d - 1), nomAccord(a.fond, AUTRES_TYPES[a.type][0])], rep, [1, 2, 3, 4, 5, 6, 7].map((x) => nomDeg(t, x))),
       explication: `Gamme de ${tonMaj(t)} : ${listeNotes(g)}. Le ${romain(d)} est bâti sur ${fr(g[d - 1])}, accord ${TYPES_ACCORD[a.type].libelle} : ${rep} (${listeNotes(notesAccord(a.fond, a.type))}). Gamme harmonisée : ${gammeHarmonisee(t, false)}.`,
       notes: notesAccord(a.fond, a.type),
+      saisie: SAISIE_ACCORD,
     });
   }
 }
@@ -316,6 +342,7 @@ for (const t of TOUTES) {
       pieges: piegesDistincts([nomAccord(a.fond, AUTRES_TYPES[a.type][0]), nomDeg(t, d + 1, true), nomDeg(t, d - 1, true)], rep, [1, 2, 3, 4, 5, 6, 7].map((x) => nomDeg(t, x, true))),
       explication: `Gamme harmonisée de ${tonMaj(t)} : ${gammeHarmonisee(t, true)}. ${chiffreRomain(d, 'majeur', true)} = ${rep}.`,
       notes: notesAccord(a.fond, a.type),
+      saisie: SAISIE_ACCORD,
     });
   }
 }
@@ -329,6 +356,7 @@ for (const t of COURANTES) {
       pieges: piegesDistincts([romain(d === 6 ? 2 : d + 1), romain(d === 2 ? 6 : d - 1), romain(d === 5 ? 4 : 5)], rep, [2, 3, 4, 5, 6, 7, 1].map(romain)),
       explication: `Gamme harmonisée de ${tonMaj(t)} : ${gammeHarmonisee(t, true)}. ${nomDeg(t, d, true)} est bâti sur ${fr(gammeMajeure(N(t))[d - 1])}, le ${rep}.`,
       notes: null,
+      saisie: grille('degres'),
     });
   }
 }
@@ -350,7 +378,8 @@ for (const t of TOUTES) {
       iiVI(cleHaut), iiVI(cleBas),
     ], rep),
     explication: `En ${tonMaj(t)} : ii = ${ii}, V = ${v}, I = ${i}. Le V est une quinte au-dessus de la tonique, le II un ton au-dessus de la tonique (et une quinte au-dessus du V).`,
-    notes: null,
+    notes: [gammeMajeure(N(t))[1], quinteSup(N(t)), N(t)],
+    saisie: touchesSuite([gammeMajeure(N(t))[1], quinteSup(N(t)), N(t)]),
   });
   ajouter({
     id: `D3:${t}:II`, dimension: 'D', niveau: 3,
@@ -359,6 +388,7 @@ for (const t of TOUTES) {
     pieges: piegesDistincts([ii.replace(/m7$/, '7'), ii.replace(/m7$/, 'maj7'), nomDeg(cleHaut, 2, true), nomDeg(cleBas, 2, true)], ii),
     explication: `Le II est un ton au-dessus de la tonique ${fr(N(t))} : ${fr(gammeMajeure(N(t))[1])}, accord mineur 7 : ${ii}. II-V-I en ${tonMaj(t)} : ${rep}.`,
     notes: null,
+    saisie: SAISIE_ACCORD,
   });
   ajouter({
     id: `D3:${t}:resout`, dimension: 'D', niveau: 3,
@@ -367,6 +397,7 @@ for (const t of TOUTES) {
     pieges: piegesDistincts([nomDeg(t, 4, true), v.replace(/7$/, 'maj7'), nomAccord(N(t), 'm7'), nomAccord(quinteSup(N(t)), 'maj7')], i),
     explication: `${v} est le V de ${tonMaj(t)} (${fr(N(t))} est une quinte en dessous de ${fr(quinteSup(N(t)))}) : il résout sur ${i}. ${ii} – ${v} – ${i} = II-V-I en ${tonMaj(t)}.`,
     notes: null,
+    saisie: SAISIE_ACCORD,
   });
   ajouter({
     id: `D3:${t}:tonalite`, dimension: 'D', niveau: 3,
@@ -374,7 +405,8 @@ for (const t of TOUTES) {
     reponse: tonMaj(t),
     pieges: piegesDistincts([tonMaj(cleHaut), tonMaj(cleBas), `${fr(gammeMajeure(N(t))[1])} mineur`, tonMin(t)], tonMaj(t)),
     explication: `Le dernier accord, ${i}, est le I : ${tonMaj(t)}. Vérification : ${v} en est le V (quinte au-dessus), ${ii} le II.`,
-    notes: null,
+    notes: [N(t)],
+    saisie: uneTouche(N(t)),
   });
 }
 function enhCle(n) {
@@ -397,7 +429,8 @@ for (const t of MINEURES) {
       [ii, v.replace(/7$/, 'm7'), i].join(SEP),
     ], rep),
     explication: `En ${tonMin(t)} : ii = ${ii} (${listeNotes(notesAccord(gm[1], 'm7b5'))}, quinte diminuée car ${fr(gm[5])} est dans la gamme), V = ${v} (avec ${fr(transposer(N(t), 'M7'))}, la sensible haussée), i = ${i}. Le ø et la sensible font la couleur du II-V mineur.`,
-    notes: null,
+    notes: [gm[1], gm[4], N(t)],
+    saisie: touchesSuite([gm[1], gm[4], N(t)]),
   });
   ajouter({
     id: `D4:${t}:II`, dimension: 'D', niveau: 4,
@@ -406,6 +439,7 @@ for (const t of MINEURES) {
     pieges: piegesDistincts([ii.replace(/m7♭5$/, 'm7'), ii.replace(/m7♭5$/, '°7'), ii.replace(/m7♭5$/, '7')], ii),
     explication: `En mineur, le II est demi-diminué (m7♭5, ou ø) : sa quinte ${fr(gm[5])} est le VIe degré abaissé de la gamme. ${rep}.`,
     notes: null,
+    saisie: SAISIE_ACCORD,
   });
   ajouter({
     id: `D4:${t}:resout`, dimension: 'D', niveau: 4,
@@ -414,6 +448,7 @@ for (const t of MINEURES) {
     pieges: piegesDistincts([nomAccord(N(t), 'maj'), nomDeg(t, 4, false, 'mineur'), nomAccord(quinteSup(N(t)), 'min')], i),
     explication: `${v} est le V de ${tonMin(t)} ; le II demi-diminué (${ii}) annonce le mode mineur : résolution sur ${i} (souvent joué ${i}6 ou ${i}(maj7)). C'est la couleur de Blue Bossa et de Black Orpheus.`,
     notes: null,
+    saisie: SAISIE_ACCORD,
   });
 }
 
@@ -444,6 +479,7 @@ function cartesIntervalle(niv, r, iv, sens) {
       pieges: piegesDistincts([fr(transposer(a, AUTRE_QUALITE[iv])), enh(b), fr(transposer(a, VOISIN_INTERVALLE[iv])), fr(transposer(a, 'P5'))], fr(b), VIVIER_NOTES),
       explication: `${majuscule(nomIntervalle(iv))} = ${tons(iv)} (${demiTons(iv)} demi-tons) : ${fr(a)} → ${fr(b)} ; ${compte}. ${majuscule(nomIntervalle(AUTRE_QUALITE[iv]))} : ${fr(transposer(a, AUTRE_QUALITE[iv]))}.`,
       notes: [a, b],
+      saisie: uneTouche(b),
     });
   } else {
     ajouter({
@@ -453,6 +489,7 @@ function cartesIntervalle(niv, r, iv, sens) {
       pieges: piegesDistincts([nomIntervalle(AUTRE_QUALITE[iv]), nomIntervalle(renversement(iv)), nomIntervalle(VOISIN_INTERVALLE[iv])], nomIntervalle(iv), VIVIER_INTERVALLES),
       explication: `${fr(a)} → ${fr(b)} : ${compte}, donc une ${nomIntervalle(iv).split(' ')[0]} ; ${tons(iv)} (${demiTons(iv)} demi-tons), donc ${nomIntervalle(iv).split(' ')[1]}. ${majuscule(nomIntervalle(iv))}.`,
       notes: [a, b],
+      saisie: grille('intervalles'),
     });
   }
 }
@@ -471,6 +508,7 @@ for (const iv of ['m2', 'M2', 'm3', 'M3', 'P4', 'A4', 'd5', 'P5', 'm6', 'M6', 'm
     pieges: piegesDistincts([nomIntervalle(AUTRE_QUALITE[renversement(iv)]), nomIntervalle(iv), nomIntervalle(VOISIN_INTERVALLE[renversement(iv)])], rep, VIVIER_INTERVALLES),
     explication: `Renverser = mettre la note du bas à l'octave. Les chiffres s'additionnent à 9 (${nbNoms(iv)} + ${nbNoms(renversement(iv))}) et la qualité s'inverse (majeur ↔ mineur, augmenté ↔ diminué, juste reste juste) : ${nomIntervalle(iv)} → ${rep}.`,
     notes: [N('C'), transposer(N('C'), iv)],
+    saisie: grille('intervalles'),
   });
 }
 for (const r of TOUTES) for (const iv of ['A4', 'd5']) {
@@ -484,6 +522,7 @@ for (const r of TOUTES) for (const iv of ['A4', 'd5']) {
     pieges: piegesDistincts([nomIntervalle(renversement(iv)), 'quarte juste', 'quinte juste'], nomIntervalle(iv), VIVIER_INTERVALLES),
     explication: `Même son (3 tons, le triton) mais pas le même nom : ${fr(a)} → ${fr(b)} compte ${nbNoms(iv)} noms de notes, c'est une ${nomIntervalle(iv)} ; ${fr(a)} → ${fr(transposer(a, renversement(iv)))} en compterait ${nbNoms(renversement(iv))} : ${nomIntervalle(renversement(iv))}.`,
     notes: [a, b],
+    saisie: grille('intervalles'),
   });
 }
 
@@ -503,7 +542,20 @@ for (const r of RACINES_F) for (const iv of INTERVALLES_F1) {
     explication: `C'était une ${nomIntervalle(iv)} (${tons(iv)}) : ${fr(a)} → ${fr(b)}. Repère : ${REPERES[iv]}.`,
     notes: [a, b],
     audio: { mode: 'melodique', notes: [a, b] },
+    saisie: grille('intervallesOreille'),
   });
+  // la même écoute, mais on rejoue : la première note est marquée sur le clavier, on touche la seconde
+  if (['C', 'F', 'G'].includes(r) && iv !== 'P8') {
+    ajouter({
+      id: `F1:${r}:${iv}:joue`, dimension: 'F', niveau: 1,
+      enonce: `Deux notes, la première est ${fr(a)} : touche la seconde`,
+      reponse: fr(b), pieges: [],
+      explication: `C'était ${fr(a)} → ${fr(b)}, une ${nomIntervalle(iv)} (${tons(iv)}). Repère : ${REPERES[iv]}.`,
+      notes: [a, b],
+      audio: { mode: 'melodique', notes: [a, b] },
+      saisie: { ...uneTouche(b), donnees: [classe(a)] },
+    });
+  }
 }
 const LIBELLES_F = { maj: 'majeur', min: 'mineur', dim: 'diminué', aug: 'augmenté', maj7: 'maj7', 7: '7 (dominante)', m7: 'm7', m7b5: 'm7♭5 (ø)', dim7: '°7' };
 const PIEGES_F = { maj: ['min', 'aug', 'dim'], min: ['maj', 'dim', 'aug'], dim: ['min', 'aug', 'maj'], aug: ['maj', 'min', 'dim'], maj7: ['7', 'm7', 'm7b5'], 7: ['maj7', 'm7', 'm7b5'], m7: ['7', 'm7b5', 'maj7'], m7b5: ['m7', 'dim7', '7'], dim7: ['m7b5', 'm7', '7'] };
@@ -524,6 +576,7 @@ for (const r of RACINES_F) {
         explication: `C'était ${nomAccord(fond, type)} (${listeNotes(notes)}) : ${INDICES_F[type]}. ${nomAccord(fond, PIEGES_F[type][0])} aurait donné ${listeNotes(notesAccord(fond, PIEGES_F[type][0]))}.`,
         notes,
         audio: { mode: 'accord', notes },
+        saisie: grille(niv === 2 ? 'triades' : 'septiemes'),
       });
     }
   }
@@ -555,6 +608,23 @@ for (const t of RACINES_F) {
     });
   }
 }
+
+// F2 dictée mélodique : trois notes entendues, la première est marquée, on rejoue les deux suivantes.
+const MELODIES_F2 = [[0, 2, 4], [0, 4, 7], [0, 2, 0], [0, -1, 0], [0, 5, 4], [0, 7, 5], [0, 4, 2], [0, -2, -4], [0, 3, 7], [0, 7, 12], [0, 5, 2], [0, 9, 7]];
+MELODIES_F2.forEach((pas, i) => {
+  const racine = 60 + [0, 2, 4, 5, 7][i % 5];
+  const midis = pas.map((x) => racine + x);
+  const notes = midis.map((m) => N(TOUTES[m % 12]));
+  ajouter({
+    id: `F2:dictee:${i}`, dimension: 'F', niveau: 2,
+    enonce: `Trois notes, la première est ${fr(notes[0])} : touche les deux suivantes`,
+    reponse: notes.slice(1).map(fr).join(SEP), pieges: [],
+    explication: `La mélodie était ${notes.map(fr).join(SEP)}. Chante-la dans ta tête avant de chercher les touches : l'oreille d'abord, les doigts ensuite.`,
+    notes,
+    audio: { mode: 'midis', midis, dureeMs: 800 },
+    saisie: touchesSuite(notes.slice(1), [notes[0]]),
+  });
+});
 
 // ---------- G. Rythme ----------
 // Listes en ordre stable : l'index sert d'identifiant de carte, on n'insère qu'à la fin.
@@ -636,6 +706,7 @@ for (const tok of TOKENS) {
     pieges: piegesDistincts(TOKENS.filter((t) => t !== tok).map(tempsValeur), rep),
     explication: `${majuscule(nomValeur(tok))} = ${rep}.${tok.endsWith('.') ? ' Le point ajoute la moitié de la valeur.' : ''}${tok === 't' || tok === 'T' ? ' Le triolet met trois notes dans la durée de deux.' : ''}`,
     notes: null,
+    saisie: grille('durees'),
   });
 }
 // G1 c. compléter la mesure
@@ -655,6 +726,7 @@ for (const x of TOUTES_CELLULES) {
     explication: `Il reste ${tempsValeur(dernier.token)} à remplir : une ${rep}. Cellule complète : ${compter(x.cell)}.`,
     svgCorrection: notationSvg(x.cell, { compte: true }),
     notes: null,
+    saisie: grille('figures'),
   });
 }
 // G1 d. quelle mesure ?
@@ -703,14 +775,32 @@ const CONSEILS_FRAPPE = {
   'c4-8': 'Pense « 1 tri o » à vitesse égale : trois frappes par clic.',
   'c4-9': 'Swing : la 2e croche vient tard, comme la 3e note d’un triolet.',
 };
+// Cellules à valeurs longues : une frappe ne dit pas combien de temps la note dure, on garde donc le doigt posé.
+const CELLULES_TENUES = ['c4-14', 'c4-15', 'c4-16', 'c4-17', 'c4-18', 'c4-19', 'c4-20', 'c3-3', 'c3-4', 'c3-5'];
 for (const x of TOUTES_CELLULES) {
-  if (x.temps === 2 || x.cell.mesures > 1 || ['c4-14', 'c4-15', 'c4-16', 'c4-17', 'c4-18', 'c4-19', 'c4-20', 'c3-3', 'c3-4', 'c3-5'].includes(x.cle)) continue;
+  if (x.temps === 2 || x.cell.mesures > 1) continue;
+  const tenue = CELLULES_TENUES.includes(x.cle);
+  const mains = [{ texte: x.cell.texte, swing: x.cell.swing, temps: x.temps }];
   ajouter({
     id: `G3:${x.cle}`, dimension: 'G', niveau: 3,
-    enonce: 'Frappe cette cellule deux fois de suite, sur le clic',
+    enonce: tenue ? 'Joue cette cellule deux fois de suite, sur le clic, en gardant le doigt posé pendant toute la durée de chaque note' : 'Frappe cette cellule deux fois de suite, sur le clic',
     reponse: 'frappe', pieges: [],
-    frappe: { bpm: 80, temps: x.temps, mesures: 2, mains: [{ texte: x.cell.texte, swing: x.cell.swing, temps: x.temps }] },
+    frappe: { bpm: 80, temps: x.temps, mesures: 2, mains, ...(tenue ? { tenue: true } : {}) },
     explication: `${CONSEILS_FRAPPE[x.cle] || majuscule(x.indice) + '.'} Comptage : ${compter(x.cell)}.`,
+    svgCorrection: notationSvg(x.cell, { compte: true }),
+    notes: null,
+  });
+  if (tenue) continue;
+  // imitation : la cellule n'est pas écrite, on l'entend deux fois puis on la refrappe
+  const o = onsetsMs(x.cell, BPM_DICTEE);
+  const mesureMs = Math.round((x.cell.duree * 60000) / BPM_DICTEE / 12);
+  ajouter({
+    id: `G3:${x.cle}:imite`, dimension: 'G', niveau: 3,
+    enonce: 'Écoute la cellule, puis refrappe-la deux fois de suite, sur le clic',
+    reponse: 'frappe', pieges: [],
+    frappe: { bpm: BPM_DICTEE, temps: x.temps, mesures: 2, mains, cachee: true },
+    audio: { mode: 'rythme', bpm: BPM_DICTEE, temps: x.temps, mesures: 2, onsetsMs: [...o, ...o.map((t) => t + mesureMs)] },
+    explication: `C'était : ${compter(x.cell)}. ${majuscule(x.indice)}.`,
     svgCorrection: notationSvg(x.cell, { compte: true }),
     notes: null,
   });
@@ -814,6 +904,7 @@ for (const cle of ['sol', 'fa']) {
       pieges: proches(iv, INTERVALLES_H4),
       explication: `${fr(a)}${o} → ${fr(b)}${oB} : on compte ${nbNoms(iv)} noms de notes, ${tons(iv)} : ${rep}. Sur la portée, ${nbNoms(iv) % 2 ? 'ligne à ligne ou interligne à interligne' : 'ligne à interligne'}.`,
       notes: [a, b],
+      saisie: grille('intervalles'),
     });
   });
 }
@@ -876,6 +967,33 @@ MELODIES_I4.forEach((pas, i) => {
     notes: midis.map((m) => N(TOUTES[((m - MIDI_C3) % 12 + 12) % 12])),
   });
 });
+
+// ---------- Grilles de réponse ----------
+export const GRILLES = {
+  intervalles: ['m2', 'M2', 'm3', 'M3', 'P4', 'A4', 'd5', 'P5', 'm6', 'M6', 'm7', 'M7', 'P8'].map(nomIntervalle),
+  intervallesOreille: INTERVALLES_F1.map(nomIntervalle),
+  degres: [1, 2, 3, 4, 5, 6, 7].map(romain),
+  figures: TOKENS.filter((t) => !['t', 'T'].includes(t)).map(nomValeur),
+  durees: TOKENS.map(tempsValeur),
+  triades: ['maj', 'min', 'dim', 'aug'].map((t) => LIBELLES_F[t]),
+  septiemes: ['maj7', '7', 'm7', 'm7b5', 'dim7'].map((t) => LIBELLES_F[t]),
+};
+// Pavé d'accord : les fondamentales gardent leur orthographe (fa♯ et sol♭ sont deux boutons).
+export const PAVE_ACCORD = {
+  fondamentales: [['C', 'D', 'E', 'F', 'G', 'A', 'B'], ['C#', 'D#', 'F#', 'G#', 'A#'], ['Db', 'Eb', 'Gb', 'Ab', 'Bb']],
+  types: ['maj', 'min', 'dim', 'aug', 'maj7', '7', 'm7', 'm7b5', 'dim7'], // Object.keys mettrait « 7 » en tête
+};
+export function nomDuPave(fondamentale, type) { return nomAccord(N(fondamentale), type); }
+
+// Temps accordé au geste : toucher quatre notes prend plus longtemps que choisir un bouton.
+// Il est retiré du temps de réponse, pour que les seuils de vitesse mesurent la réflexion.
+const GESTE_MS = 1200;
+export function delaiSaisie(c) {
+  if (!c.saisie) return 0;
+  if (c.saisie.type === 'accord') return GESTE_MS;
+  if (c.saisie.type === 'clavier' && c.saisie.mode !== 'une') return GESTE_MS * Math.max(1, c.saisie.classes.length);
+  return 0;
+}
 
 // ---------- API ----------
 const index = new Map(cartes.map((c) => [c.id, c]));
