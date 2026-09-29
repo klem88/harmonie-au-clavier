@@ -16,7 +16,7 @@ export function midisMontants(notes, octaveDepart = 4) {
   return out;
 }
 
-// spec = { mode: 'melodique' | 'accord' | 'cadence', notes | accords }
+// spec = { mode: 'melodique' | 'accord' | 'cadence' | 'tonal', notes | accords | cadence + midis/accord }
 export function sequenceAudio(spec) {
   if (spec.mode === 'melodique') {
     const m = midisMontants(spec.notes);
@@ -28,6 +28,14 @@ export function sequenceAudio(spec) {
   }
   if (spec.mode === 'midis') return spec.midis.map((m) => ({ midis: [m], dureeMs: spec.dureeMs || 900 }));
   if (spec.mode === 'accordMidis') return [{ midis: spec.midis, dureeMs: spec.dureeMs || 1600 }];
+  // Oreille tonale : la cadence installe la tonalité, un silence, puis des notes (midis déjà placés) ou un accord.
+  if (spec.mode === 'tonal') {
+    const cadence = spec.cadence.map((notes) => { const m = midisMontants(notes, 3); return { midis: [m[0] - 12, ...m], dureeMs: 650 }; });
+    const suite = spec.accord
+      ? [{ midis: (() => { const m = midisMontants(spec.accord, 3); return [m[0] - 12, ...m]; })(), dureeMs: 1600 }]
+      : spec.midis.map((m, i) => ({ midis: [m], dureeMs: i === spec.midis.length - 1 ? 1300 : 750 }));
+    return [...cadence, { midis: [], dureeMs: 600 }, ...suite];
+  }
   if (spec.mode === 'cadence') {
     return spec.accords.map((notes) => { const m = midisMontants(notes, 3); return { midis: [m[0] - 12, ...m], dureeMs: 900 }; });
   }

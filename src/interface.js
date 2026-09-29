@@ -1,6 +1,6 @@
 // Écrans et interactions. Seul module qui touche le DOM.
 
-import { DIMENSIONS, carte, melangerChoix, GRILLES, PAVE_ACCORD, nomDuPave, delaiSaisie } from './questions.js';
+import { DIMENSIONS, carte, melangerChoix, GRILLES_REPONSE, PAVE_ACCORD, nomDuPave, delaiSaisie } from './questions.js';
 import {
   REGLES, seuils, delaiBoite, normaliser, composerSeance, enregistrerReponse, cloreSeance, bilan, cartesDues,
   FileSeance, mediane, lireSauvegarde,
@@ -121,7 +121,7 @@ function rendreAccueil() {
     const manque = verrou ? `Niv. ${d.deblocage.suivant} : ${texteVerrou(verrou)}`
       : d.deblocage ? `Niv. ${d.deblocage.suivant} prêt à s'ouvrir` : 'Tous les niveaux ouverts';
     const sansMicro = dim === 'I' && !MICRO_PERMIS;
-    const muet = sansMicro || (silence && (dim === 'F' || dim === 'I'));
+    const muet = sansMicro || (silence && 'FIK'.includes(dim));
     conteneur.append(el('button', { class: `dim${muet ? ' inactif' : ''}`, type: 'button', disabled: muet ? '' : undefined, onclick: () => demarrerSeance({ dimension: dim }) },
       el('span', { class: 'nom' }, d.nom),
       el('span', { class: 'niveau' }, `niv. ${d.niveauOuvert}`),
@@ -465,7 +465,7 @@ function conclureSaisie(c, juste, reponseDonnee) {
 const saisieFinie = () => $('seance-correction').hidden === false;
 
 function preparerGrille(c) {
-  const choix = GRILLES[c.saisie.grille];
+  const choix = GRILLES_REPONSE[c.saisie.grille];
   const zone = $('seance-choix');
   zone.className = `choix grille${choix.every((t) => t.length <= 6) ? ' serree' : ''}`;
   zone.replaceChildren(...choix.map((t) => el('button', { class: 'btn', type: 'button', 'data-choix': t, onclick: (ev) => repondre(t, ev.currentTarget) }, t)));

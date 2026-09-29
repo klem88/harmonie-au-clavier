@@ -197,7 +197,7 @@ test('composerSeance : état vide → 20 cartes de niveau 1, dimensions alterné
   assert.equal(ids.length, 20);
   assert.equal(new Set(ids).size, 20);
   for (const id of ids) assert.equal(carte(id).niveau, 1);
-  assert.deepEqual([...new Set(ids.slice(0, 9).map((id) => carte(id).dimension))].sort(), ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
+  assert.deepEqual([...new Set(ids.slice(0, 11).map((id) => carte(id).dimension))].sort(), ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L']);
 });
 
 test('composerSeance : les cartes dues d’abord, la plus en retard en tête', () => {

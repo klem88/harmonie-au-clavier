@@ -5,7 +5,7 @@ import {
   note, nomFr, nomLettre, enharmonique, transposer, demiTons, TYPES_ACCORD, classe,
   notesAccord, nomAccord, gammeMajeure, gammeMineureNaturelle, armure,
   relativeMineure, quinteSup, quinteInf, accordDegre, chiffreRomain, listeNotes,
-  nomIntervalle, renversement, intervalleEntre,
+  nomIntervalle, renversement, intervalleEntre, midi,
 } from './theorie.js';
 import { cellule, onsets, onsetsMs, compter, notationSvg, nomValeur, tempsValeur, TOKENS } from './rythme.js';
 import { porteeSvg, positionPortee, noteAPosition, decrirePosition, REGLES_LECTURE } from './portee.js';
@@ -20,12 +20,15 @@ export const DIMENSIONS = {
   G: { nom: 'Rythme', niveaux: 4 },
   H: { nom: 'Lecture', niveaux: 4 },
   I: { nom: 'Chant', niveaux: 4 },
+  K: { nom: 'Oreille tonale', niveaux: 3 },
+  L: { nom: 'Jazz : couleurs et grilles', niveaux: 4 },
 };
 
 const COURANTES = ['C', 'F', 'G', 'Bb', 'Eb', 'D', 'A'];
 const TOUTES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 const RESTANTES = TOUTES.filter((r) => !COURANTES.includes(r));
-const TONALITES = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb'];
+// Armures travaillées : jusqu'à 4 dièses ou 4 bémols, plus ré♭ majeur (5 ♭).
+const TONALITES = ['C', 'G', 'D', 'A', 'E', 'F', 'Bb', 'Eb', 'Ab', 'Db'];
 const MINEURES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
 
 const SEP = ' – ';
@@ -59,7 +62,10 @@ function piegesDistincts(candidats, reponse, vivier = []) {
 
 const VIVIER_NOTES = TOUTES.map((r) => fr(N(r)));
 const VIVIER_TONALITES = TONALITES.map(tonMaj);
-const VIVIER_ARMURES = [-7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7].map(texteArmure);
+const [ARMURE_MIN, ARMURE_MAX] = [-5, 4];
+const VIVIER_ARMURES = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4].map(texteArmure);
+// Piège d'armure : rien hors des armures travaillées (le vivier complète).
+const piegeArmure = (n) => (n >= ARMURE_MIN && n <= ARMURE_MAX ? texteArmure(n) : null);
 const enh = (n) => { const e = enharmonique(n); return e ? fr(e) : null; };
 const tons = (i) => {
   const d = demiTons(i); const t = Math.floor(d / 2); const s = t ? `${t} ton${t > 1 ? 's' : ''}` : '';
@@ -70,7 +76,7 @@ const tons = (i) => {
 // Sans `saisie`, la carte propose 4 choix (la réponse et ses pièges). Avec, l'élève construit sa réponse :
 //  clavier : touches à toucher, comparées par classe de hauteur. Mode « une » (réponse immédiate),
 //            « ensemble » (accord, armure : on valide) ou « suite » (dans l'ordre) ; `donnees` = touches déjà marquées.
-//  grille  : toujours les mêmes boutons (GRILLES), pour ne pas répondre par élimination.
+//  grille  : toujours les mêmes boutons (GRILLES_REPONSE), pour ne pas répondre par élimination.
 //  accord  : fondamentale puis qualité (PAVE_ACCORD).
 // Les pièges restent sur les cartes : ils servent aux explications et aux tests.
 const uneTouche = (n) => ({ type: 'clavier', mode: 'une', classes: [classe(n)] });
@@ -89,7 +95,7 @@ function cartesArmure(niv, t) {
     id: `A${niv}:${t}:armure`, dimension: 'A', niveau: niv,
     enonce: `Armure de ${tonMaj(t)} ?`,
     reponse: texteArmure(n),
-    pieges: piegesDistincts([texteArmure(n + 1), texteArmure(n - 1), texteArmure(-n)], texteArmure(n), VIVIER_ARMURES),
+    pieges: piegesDistincts([piegeArmure(n + 1), piegeArmure(n - 1), piegeArmure(-n)], texteArmure(n), VIVIER_ARMURES),
     explication: `${tonMaj(t)} : ${detailArmure(t)}. Ordre des dièses : fa do sol ré la mi si ; des bémols : si mi la ré sol do fa.`,
     notes: n === 0 ? null : armure(N(t)).alterations,
     saisie: touchesEnsemble(armure(N(t)).alterations),
@@ -112,7 +118,8 @@ function cartesArmure(niv, t) {
 }
 for (const t of TONALITES) cartesArmure(Math.abs(armure(N(t)).nombre) <= 3 ? 1 : 2, t);
 
-for (const t of TONALITES) {
+// Relatives : on garde aussi si, fa♯ et sol♭ majeur (question d'intervalle, pas d'armure).
+for (const t of [...TONALITES, 'B', 'F#', 'Gb']) {
   const rel = relativeMineure(N(t));
   const n = armure(N(t)).nombre;
   const voisins = TONALITES.filter((x) => Math.abs(armure(N(x)).nombre - n) === 1).map((x) => `${fr(relativeMineure(N(x)))} mineur`);
@@ -133,7 +140,7 @@ for (const t of ['A', 'E', 'B', 'F#', 'D', 'G', 'C', 'F']) {
     id: `A2:${t}m:armure`, dimension: 'A', niveau: 2,
     enonce: `Armure de ${tonMin(t)} ?`,
     reponse: texteArmure(n),
-    pieges: piegesDistincts([texteArmure(n + 1), texteArmure(n - 1), texteArmure(-n), texteArmure(armure(N(t)).nombre)], texteArmure(n), VIVIER_ARMURES),
+    pieges: piegesDistincts([piegeArmure(n + 1), piegeArmure(n - 1), piegeArmure(-n), piegeArmure(armure(N(t)).nombre)], texteArmure(n), VIVIER_ARMURES),
     explication: `${tonMin(t)} est la relative de ${fr(relMaj)} majeur (une tierce mineure au-dessus) : ${detailArmure(t, 'mineur')}.`,
     notes: n === 0 ? null : armure(N(t), 'mineur').alterations,
     saisie: touchesEnsemble(armure(N(t), 'mineur').alterations),
@@ -142,25 +149,6 @@ for (const t of ['A', 'E', 'B', 'F#', 'D', 'G', 'C', 'F']) {
 
 for (const r of TOUTES) {
   const n = N(r);
-  const sup = quinteSup(n); const inf = quinteInf(n);
-  ajouter({
-    id: `A3:${r}:quinteSup`, dimension: 'A', niveau: 3,
-    enonce: `Quinte au-dessus de ${fr(n)} ?`,
-    reponse: fr(sup),
-    pieges: piegesDistincts([fr(transposer(n, 'P4')), enh(sup), fr(transposer(n, 'd5')), fr(transposer(n, 'A5'))], fr(sup), VIVIER_NOTES),
-    explication: `Quinte juste = 3 tons ½ : ${fr(n)} → ${fr(sup)}. Sur le cycle des quintes, on avance d'un cran (un ♯ de plus ou un ♭ de moins).`,
-    notes: [n, sup],
-    saisie: uneTouche(sup),
-  });
-  ajouter({
-    id: `A3:${r}:quinteInf`, dimension: 'A', niveau: 3,
-    enonce: `Quinte en dessous de ${fr(n)} ?`,
-    reponse: fr(inf),
-    pieges: piegesDistincts([fr(sup), enh(inf), fr(transposer(n, 'A4')), fr(transposer(n, 'M3'))], fr(inf), VIVIER_NOTES),
-    explication: `Une quinte en dessous = une quarte au-dessus : ${fr(n)} → ${fr(inf)}. Sur le cycle, on recule d'un cran (un ♭ de plus ou un ♯ de moins).`,
-    notes: [n, inf],
-    saisie: uneTouche(inf),
-  });
   const g = gammeMajeure(n);
   for (const [deg, nom] of [[4, 'IV (sous-dominante)'], [5, 'V (dominante)']]) {
     const rep = fr(g[deg - 1]);
@@ -197,12 +185,22 @@ function notesMalOrthographiees(notes) {
   }
   return null;
 }
-function cartesAccord(niv, r, type) {
+// Fondamentale altérée : on prend l'orthographe qui donne le moins d'altérations
+// (C♯m plutôt que D♭m = ré♭ fa♭ la♭, D♯ø plutôt que E♭ø = mi♭ sol♭ si𝄫 ré♭).
+const ENH_RACINE = { Db: 'C#', Eb: 'D#', 'F#': 'Gb', Ab: 'G#', Bb: 'A#' };
+function racine(r, type) {
+  const autre = ENH_RACINE[r];
+  if (!autre) return r;
+  const poids = (x) => notesAccord(N(x), type).reduce((t, n) => t + Math.abs(n.alt), 0);
+  return poids(autre) < poids(r) ? autre : r;
+}
+function cartesAccord(niv, r0, type) {
+  const r = racine(r0, type);
   const fond = N(r);
   const notes = notesAccord(fond, type);
   const rep = listeNotes(notes);
   const autres = AUTRES_TYPES[type].map((t) => listeNotes(notesAccord(fond, t)));
-  const vivierNotes = TOUTES.map((x) => listeNotes(notesAccord(N(x), type)));
+  const vivierNotes = TOUTES.map((x) => listeNotes(notesAccord(N(racine(x, type)), type)));
   ajouter({
     id: `B${niv}:${r}:${type}:notes`, dimension: 'B', niveau: niv,
     enonce: `Notes de ${nomAccord(fond, type)} ?`,
@@ -218,14 +216,14 @@ function cartesAccord(niv, r, type) {
     id: `B${niv}:${r}:${type}:nom`, dimension: 'B', niveau: niv,
     enonce: `${rep} = ?`,
     reponse: nom,
-    pieges: piegesDistincts([nomAccord(fond, AUTRES_TYPES[type][0]), relatif, ...AUTRES_TYPES[type].slice(1).map((t) => nomAccord(fond, t))], nom, TOUTES.map((x) => nomAccord(N(x), type))),
+    pieges: piegesDistincts([nomAccord(fond, AUTRES_TYPES[type][0]), relatif, ...AUTRES_TYPES[type].slice(1).map((t) => nomAccord(fond, t))], nom, TOUTES.map((x) => nomAccord(N(racine(x, type)), type))),
     explication: `${explicationAccord(fond, type)} C'est un accord ${TYPES_ACCORD[type].libelle}.`,
     notes,
     saisie: SAISIE_ACCORD,
   });
 }
 for (const r of COURANTES) for (const t of ['maj', 'min']) cartesAccord(1, r, t);
-for (const r of TOUTES) for (const t of ['dim', 'aug']) cartesAccord(2, r, t);
+for (const r of COURANTES) for (const t of ['dim', 'aug']) cartesAccord(2, r, t);
 for (const r of RESTANTES) for (const t of ['maj', 'min']) cartesAccord(2, r, t);
 for (const r of TOUTES) for (const t of ['maj7', '7', 'm7']) cartesAccord(3, r, t);
 for (const r of TOUTES) for (const t of ['m7b5', 'dim7']) cartesAccord(4, r, t);
@@ -253,7 +251,8 @@ for (const r of COURANTES) {
 }
 
 // ---------- C. Notes guides ----------
-function cartesGuides(niv, r, type) {
+function cartesGuides(niv, r0, type) {
+  const r = racine(r0, type);
   const fond = N(r);
   const notes = notesAccord(fond, type);
   const [, tierce, quinte, septieme] = notes;
@@ -496,7 +495,8 @@ function cartesIntervalle(niv, r, iv, sens) {
 for (const r of ['C', 'G', 'F']) for (const iv of INTERVALLES_E1) { cartesIntervalle(1, r, iv, 'note'); cartesIntervalle(1, r, iv, 'nom'); }
 for (const r of TOUTES) for (const iv of INTERVALLES_E2) {
   if (['C', 'G', 'F'].includes(r) && INTERVALLES_E1.includes(iv)) continue;
-  cartesIntervalle(2, r, iv, 'note');
+  // « Au-dessus de » : fondamentales courantes seulement, et jamais de réponse doublement altérée.
+  if (COURANTES.includes(r) && Math.abs(transposer(N(r), iv).alt) <= 1) cartesIntervalle(2, r, iv, 'note');
   if (['C', 'D', 'E', 'F', 'G', 'A', 'B'].includes(r)) cartesIntervalle(2, r, iv, 'nom');
 }
 for (const iv of ['m2', 'M2', 'm3', 'M3', 'P4', 'A4', 'd5', 'P5', 'm6', 'M6', 'm7', 'M7']) {
@@ -528,7 +528,7 @@ for (const r of TOUTES) for (const iv of ['A4', 'd5']) {
 
 // ---------- F. Oreille ----------
 const RACINES_F = ['C', 'Eb', 'F', 'G', 'A', 'Bb'];
-const INTERVALLES_F1 = ['m3', 'M3', 'P4', 'P5', 'M6', 'm7', 'M7', 'P8'];
+const INTERVALLES_F1 = ['m2', 'M2', 'm3', 'M3', 'P4', 'A4', 'P5', 'm6', 'M6', 'm7', 'M7', 'P8'];
 function proches(iv, liste) {
   return liste.filter((x) => x !== iv).sort((x, y) => Math.abs(demiTons(x) - demiTons(iv)) - Math.abs(demiTons(y) - demiTons(iv))).slice(0, 3).map(nomIntervalle);
 }
@@ -968,11 +968,271 @@ MELODIES_I4.forEach((pas, i) => {
   });
 });
 
+// ---------- K. Oreille tonale ----------
+// Une cadence I-IV-V-I installe la tonalité, puis on situe ce qu'on entend par rapport à la tonique :
+// c'est l'oreille qui sert à jouer d'oreille, repiquer une mélodie ou suivre une grille.
+const cadenceTonale = (t) => [1, 4, 5, 1].map((d) => { const a = accordDegre(N(t), d); return notesAccord(a.fond, a.type); });
+const NOMS_DEGRES = { 1: 'tonique', 2: 'sus-tonique', 3: 'médiante', 4: 'sous-dominante', 5: 'dominante', 6: 'sus-dominante', 7: 'sensible' };
+const INDICES_DEGRES = {
+  1: 'repos complet, la note « maison »', 2: 'juste au-dessus de la tonique, veut redescendre',
+  3: 'stable, donne la couleur majeure', 4: 'tendue, veut descendre sur le 3',
+  5: 'stable et solide, comme un appel ouvert', 6: 'douce, un peu mélancolique, tend vers le 5',
+  7: 'très tendue, colle à la tonique juste au-dessus',
+};
+const texteDegre = (d) => `degré ${d}`;
+const distDegre = (a, b) => Math.min(Math.abs(a - b), 7 - Math.abs(a - b));
+const voisinsDegre = (d) => [1, 2, 3, 4, 5, 6, 7].filter((x) => x !== d).sort((a, b) => distDegre(a, d) - distDegre(b, d) || a - b).slice(0, 3);
+// Hauteurs MIDI des degrés : le premier dans l'octave de la tonique (do4…), les suivants au plus près du précédent.
+function placerDegres(t, degres) {
+  const g = gammeMajeure(N(t)); const base = midi(N(t), 4);
+  const out = [];
+  for (const d of degres) {
+    let m = base + ((classe(g[d - 1]) - classe(N(t))) + 12) % 12;
+    if (out.length) { const p = out.at(-1); while (m - p > 6) m -= 12; while (p - m > 6) m += 12; }
+    out.push(m);
+  }
+  return out;
+}
+const RACINES_K = ['C', 'Eb', 'F', 'G', 'A', 'Bb'];
+for (const t of RACINES_K) {
+  const g = gammeMajeure(N(t));
+  for (let d = 1; d <= 7; d++) {
+    ajouter({
+      id: `K1:${t}:${d}`, dimension: 'K', niveau: 1,
+      enonce: 'Après la cadence, quel degré entends-tu ?',
+      reponse: texteDegre(d),
+      pieges: voisinsDegre(d).map(texteDegre),
+      explication: `En ${tonMaj(t)}, c'était ${fr(g[d - 1])} : le degré ${d} (${NOMS_DEGRES[d]}), ${INDICES_DEGRES[d]}. Chante la tonique dans ta tête, puis monte ou descends jusqu'à la note.`,
+      notes: d === 1 ? [N(t), g[0]] : [N(t), g[d - 1]],
+      audio: { mode: 'tonal', cadence: cadenceTonale(t), midis: placerDegres(t, [d]) },
+      saisie: grille('degresEntendus'),
+    });
+  }
+}
+const PIEGES_K2 = { 1: [6, 4, 5], 2: [4, 5, 6], 4: [2, 6, 1], 5: [1, 2, 4], 6: [1, 4, 2] };
+const INDICES_K2 = {
+  1: 'repos, sonne « fini »', 2: 'mineur, prépare le V (c\'est le II du II-V-I)', 4: 'majeur, s\'éloigne de la tonique, sonne « ouvert »',
+  5: 'majeur et tendu, appelle le I', 6: 'mineur, cousin du I (deux notes communes), plus sombre',
+};
+for (const t of RACINES_K) {
+  for (const d of [1, 2, 4, 5, 6]) {
+    const a = accordDegre(N(t), d); const notes = notesAccord(a.fond, a.type);
+    ajouter({
+      id: `K2:${t}:${d}`, dimension: 'K', niveau: 2,
+      enonce: 'Après la cadence, quel accord entends-tu ?',
+      reponse: romain(d),
+      pieges: PIEGES_K2[d].map(romain),
+      explication: `En ${tonMaj(t)}, c'était ${nomAccord(a.fond, a.type)} (${listeNotes(notes)}) : le ${romain(d)}, ${INDICES_K2[d]}. Écoute surtout la basse : ${fr(a.fond)}, degré ${d}.`,
+      notes,
+      audio: { mode: 'tonal', cadence: cadenceTonale(t), accord: notes },
+      saisie: grille('degres'),
+    });
+  }
+}
+// Cellules de trois notes qu'on retrouve partout dans les mélodies (ordre stable : l'index ne sert pas d'id).
+const CELLULES_K3 = [[1, 2, 3], [3, 2, 1], [5, 4, 3], [1, 7, 1], [5, 6, 5], [3, 4, 5], [1, 3, 5], [5, 3, 1]];
+const texteCellule = (c) => c.join(SEP);
+for (const t of ['C', 'F', 'G', 'Bb']) {
+  const g = gammeMajeure(N(t));
+  for (const cel of CELLULES_K3) {
+    const diff = (x) => x.reduce((s, d, i) => s + (d !== cel[i]), 0);
+    const pieges = CELLULES_K3.filter((x) => x !== cel).sort((x, y) => diff(x) - diff(y)).slice(0, 3).map(texteCellule);
+    const notes = cel.map((d) => g[d - 1]);
+    ajouter({
+      id: `K3:${t}:${cel.join('')}`, dimension: 'K', niveau: 3,
+      enonce: 'Après la cadence, quels degrés chante la mélodie ?',
+      reponse: texteCellule(cel),
+      pieges,
+      explication: `En ${tonMaj(t)} : ${listeNotes(notes)}, soit les degrés ${texteCellule(cel)}. Repère d'abord la note de départ par rapport à la tonique, puis le sens (monte, descend) et la taille des pas.`,
+      notes,
+      audio: { mode: 'tonal', cadence: cadenceTonale(t), midis: placerDegres(t, cel) },
+    });
+  }
+}
+
+// ---------- L. Jazz : couleurs, dominantes secondaires, grilles, voicings ----------
+// L1 : accords 6, m6, 7sus4 et extensions (9e, 13e, ♭9) dans les II-V-I courants.
+const PIEGES_L1 = { 6: ['maj7', 'm6', '7'], m6: ['m7', '6', '7'], '7sus4': ['7', 'm7', 'maj7'] };
+function indiceL1(fond, type) {
+  if (type === '6') return `la sixte remplace la 7e : l'accord de fin des morceaux de bossa et de swing. Mêmes notes que ${nomAccord(transposer(fond, 'M6'), 'm7')}, mais avec ${fr(fond)} à la basse`;
+  if (type === 'm6') return 'mineur avec sixte majeure : la couleur du i mineur en bossa (Blue Bossa, Black Orpheus)';
+  return `la quarte (${fr(transposer(fond, 'P4'))}) remplace la tierce : dominante suspendue, sans la tension du triton ; très courante en bossa et en jazz modal`;
+}
+for (const r of COURANTES) {
+  for (const type of ['6', 'm6', '7sus4']) {
+    const fond = N(r); const notes = notesAccord(fond, type); const rep = listeNotes(notes); const nom = nomAccord(fond, type);
+    const autres = PIEGES_L1[type];
+    const expl = `${nom} = ${rep} : ${indiceL1(fond, type)}.`;
+    ajouter({
+      id: `L1:${r}:${type}:notes`, dimension: 'L', niveau: 1,
+      enonce: `Notes de ${nom} ?`,
+      reponse: rep,
+      pieges: autres.map((t) => listeNotes(notesAccord(fond, t))),
+      explication: `${expl} ${nomAccord(fond, autres[0])} aurait ${listeNotes(notesAccord(fond, autres[0]))}.`,
+      notes,
+      saisie: touchesEnsemble(notes),
+    });
+    ajouter({
+      id: `L1:${r}:${type}:nom`, dimension: 'L', niveau: 1,
+      enonce: `${rep} = ?`,
+      reponse: nom,
+      pieges: autres.map((t) => nomAccord(fond, t)),
+      explication: expl,
+      notes,
+      saisie: SAISIE_ACCORD,
+    });
+  }
+}
+const EXTENSIONS = [
+  { role: 'ii', cle: '9', iv: 'M2', nom: '9e', pieges: ['m2', 'm3', 'm7'], texte: 'la 9e d\'un m7 est un ton au-dessus de la fondamentale' },
+  { role: 'V', cle: '13', iv: 'M6', nom: '13e', pieges: ['m6', 'P5', 'm7'], texte: 'la 13e est la sixte une octave plus haut ; sur un 7, elle se joue à la place de la quinte' },
+  { role: 'V', cle: 'b9', iv: 'm2', nom: '♭9', pieges: ['M2', 'M3', 'P1'], texte: 'la ♭9 est un demi-ton au-dessus de la fondamentale ; elle durcit le V quand il va vers un accord mineur' },
+  { role: 'I', cle: '9', iv: 'M2', nom: '9e', pieges: ['m2', 'M3', 'M7'], texte: 'la 9e d\'un maj7 est un ton au-dessus de la fondamentale' },
+];
+for (const t of COURANTES) {
+  const acc = { ii: accordDegre(N(t), 2, { septieme: true }), V: accordDegre(N(t), 5, { septieme: true }), I: { fond: N(t), type: 'maj7' } };
+  for (const e of EXTENSIONS) {
+    const a = acc[e.role]; const nom = nomAccord(a.fond, a.type); const notes = notesAccord(a.fond, a.type);
+    const x = transposer(a.fond, e.iv);
+    ajouter({
+      id: `L1:${t}:${e.role}:${e.cle}`, dimension: 'L', niveau: 1,
+      enonce: `${e.nom} de ${nom} ?`,
+      reponse: fr(x),
+      pieges: piegesDistincts(e.pieges.map((iv) => fr(transposer(a.fond, iv))), fr(x), VIVIER_NOTES),
+      explication: `${nom} = ${listeNotes(notes)} ; ${e.texte} : ${fr(a.fond)} → ${fr(x)}. Dans le II-V-I de ${tonMaj(t)}, c'est le ${e.role}.`,
+      notes: [...notes, x],
+      saisie: uneTouche(x),
+    });
+  }
+}
+
+// L2 : dominantes secondaires (V7 d'un autre degré que le I) et substitut tritonique.
+for (const t of COURANTES) {
+  const g = gammeMajeure(N(t));
+  const dans = (n) => g.some((x) => x.lettre === n.lettre && x.alt === n.alt);
+  const cibles = [2, 4, 5, 6].map((d) => {
+    const c = accordDegre(N(t), d, { septieme: true });
+    const fondDom = transposer(c.fond, 'P5');
+    return { d, nomCible: nomAccord(c.fond, c.type), nomDom: nomAccord(fondDom, '7'), notesDom: notesAccord(fondDom, '7') };
+  });
+  for (const c of cibles) {
+    const autres = cibles.filter((x) => x !== c);
+    const etrangeres = c.notesDom.filter((n) => !dans(n));
+    const expl = `V7/${romain(c.d)} = la dominante du ${romain(c.d)} (${c.nomCible}) : une quinte au-dessus de sa fondamentale, ${c.nomDom} (${listeNotes(c.notesDom)}). Note${etrangeres.length > 1 ? 's' : ''} étrangère${etrangeres.length > 1 ? 's' : ''} à ${tonMaj(t)} : ${listeNotes(etrangeres)}, qui tire vers ${c.nomCible}.`;
+    ajouter({
+      id: `L2:${t}:${c.d}:dominante`, dimension: 'L', niveau: 2,
+      enonce: `Dominante secondaire V7/${romain(c.d)} en ${tonMaj(t)} ?`,
+      reponse: c.nomDom,
+      pieges: autres.map((x) => x.nomDom),
+      explication: expl,
+      notes: c.notesDom,
+      saisie: SAISIE_ACCORD,
+    });
+    ajouter({
+      id: `L2:${t}:${c.d}:cible`, dimension: 'L', niveau: 2,
+      enonce: `${c.nomDom} en ${tonMaj(t)} : dominante de quel accord ?`,
+      reponse: c.nomCible,
+      pieges: autres.map((x) => x.nomCible),
+      explication: `${expl} On le reconnaît : un accord 7 qui n'est pas le V, et dont la fondamentale est une quinte au-dessus d'un accord de la tonalité.`,
+      notes: c.notesDom,
+      saisie: SAISIE_ACCORD,
+    });
+  }
+  const fondV = transposer(N(t), 'P5'); const nomV = nomAccord(fondV, '7'); const notesV = notesAccord(fondV, '7');
+  const [d5, a4] = [transposer(fondV, 'd5'), transposer(fondV, 'A4')];
+  const sub = Math.abs(a4.alt) < Math.abs(d5.alt) ? a4 : d5;
+  const notesSub = notesAccord(sub, '7');
+  ajouter({
+    id: `L2:${t}:tritonique`, dimension: 'L', niveau: 2,
+    enonce: `Substitut tritonique de ${nomV} ?`,
+    reponse: nomAccord(sub, '7'),
+    pieges: ['P5', 'P4', 'm3'].map((iv) => nomAccord(transposer(fondV, iv), '7')),
+    explication: `Le substitut tritonique est à 3 tons : ${nomV} → ${nomAccord(sub, '7')} (${listeNotes(notesSub)}). Les deux partagent le même triton ${fr(notesV[1])}–${fr(notesV[3])} (la tierce de l'un est la 7e de l'autre), et ${nomAccord(sub, '7')} descend d'un demi-ton vers ${nomAccord(N(t), 'maj7')}.`,
+    notes: notesSub,
+    saisie: SAISIE_ACCORD,
+  });
+}
+
+// L3 : grilles de standards (versions Real Book). Chaque énoncé cite les accords : on analyse, on ne récite pas.
+const GRILLES = [
+  { id: 'autumn-1', enonce: 'Autumn Leaves (sol mineur), début : Cm7 – F7 – B♭maj7 = ?', reponse: 'II-V-I en si♭ majeur',
+    pieges: ['II-V-I en fa majeur', 'II-V-i en do mineur', 'II-V-I en mi♭ majeur'],
+    explication: 'Cm7 est le II de si♭, F7 son V, B♭maj7 le I : le morceau commence dans la relative majeure (si♭) avant d\'aller en sol mineur.' },
+  { id: 'autumn-2', enonce: 'Autumn Leaves (sol mineur) : Am7♭5 – D7 – Gm = ?', reponse: 'II-V-i en sol mineur',
+    pieges: ['II-V-I en sol majeur', 'II-V-i en ré mineur', 'II-V-I en do majeur'],
+    explication: 'Am7♭5 (ø) est le II mineur, D7 le V, Gm le i : sol mineur. Tout le morceau alterne ce II-V-i et le II-V-I de la relative, si♭ majeur.' },
+  { id: 'bluebossa-1', enonce: 'Blue Bossa (do mineur), mes. 5-7 : Dm7♭5 – G7 – Cm7 = ?', reponse: 'II-V-i en do mineur',
+    pieges: ['II-V-I en do majeur', 'II-V-i en sol mineur', 'II-V-I en fa majeur'],
+    explication: 'Dm7♭5 est le II demi-diminué, G7 le V, Cm7 le i : retour à la tonalité de départ, do mineur.' },
+  { id: 'bluebossa-2', enonce: 'Blue Bossa (do mineur), mes. 9-11 : E♭m7 – A♭7 – D♭maj7 = ?', reponse: 'II-V-I en ré♭ majeur',
+    pieges: ['II-V-I en la♭ majeur', 'II-V-i en mi♭ mineur', 'II-V-I en si♭ majeur'],
+    explication: 'E♭m7 est le II de ré♭, A♭7 son V, D♭maj7 le I : le pont module un demi-ton au-dessus de do, puis Dm7♭5 – G7 ramène en do mineur.' },
+  { id: 'flyme-1', enonce: 'Fly Me to the Moon (do majeur), début : Am7 – Dm7 – G7 – Cmaj7 = ?', reponse: 'vi – ii – V – I en do majeur',
+    pieges: ['iii – vi – ii – V en fa majeur', 'ii – V – I – IV en sol majeur', 'vi – ii – V – I en fa majeur'],
+    explication: 'Am7, Dm7, G7, Cmaj7 sont les vi, ii, V et I de do majeur : chaque fondamentale descend d\'une quinte (cycle des quintes) jusqu\'à la tonique.' },
+  { id: 'flyme-2', enonce: 'Fly Me to the Moon (do majeur) : Bm7♭5 – E7 – Am7 = ?', reponse: 'II-V-i en la mineur',
+    pieges: ['II-V-I en la majeur', 'II-V-i en mi mineur', 'II-V-I en do majeur'],
+    explication: 'Bm7♭5 – E7 – Am7 est le II-V-i de la mineur, la relative de do : le morceau passe sans cesse de do majeur à la mineur.' },
+  { id: 'atrain', enonce: 'Take the A Train (do majeur) : Cmaj7 – D7 – Dm7 – G7 – Cmaj7 : D7 = ?', reponse: 'V7/V (dominante secondaire)',
+    pieges: ['V7/ii', 'substitut tritonique de G7', 'IV7 (couleur blues)'],
+    explication: 'D7 est la dominante de G (le V de do) : V7/V. Son fa♯ n\'est pas dans do majeur. Ici, Dm7 s\'intercale avant G7 : D7 devient Dm7, puis le II-V ramène à do.' },
+  { id: 'ipanema-1', enonce: 'The Girl from Ipanema (fa majeur) : Fmaj7 – G7 = ? (G7 à la mes. 3)', reponse: 'V7/V (dominante secondaire)',
+    pieges: ['V7/ii', 'V7 de fa', 'substitut tritonique de C7'],
+    explication: 'G7 est la dominante de C (le V de fa) : V7/V, avec son si naturel étranger à fa majeur. Il ne résout pas tout de suite : Gm7 puis G♭7 le suivent.' },
+  { id: 'ipanema-2', enonce: 'The Girl from Ipanema (fa majeur) : Gm7 – G♭7 – Fmaj7 : G♭7 = ?', reponse: 'substitut tritonique de C7',
+    pieges: ['V7 de fa', 'V7/IV', 'V7/ii'],
+    explication: 'Le II-V attendu serait Gm7 – C7 – Fmaj7. G♭7 remplace C7 : même triton (mi–si♭ = fa♭–si♭), et la basse descend par demi-tons sol → sol♭ → fa.' },
+  { id: 'satindoll', enonce: 'Satin Doll (do majeur) : A♭m7 – D♭7 – Cmaj7 : D♭7 = ?', reponse: 'substitut tritonique de G7',
+    pieges: ['V7/V', 'V7/IV', 'V7/vi'],
+    explication: 'D♭7 remplace G7 (même triton si–fa = do♭–fa) et glisse d\'un demi-ton sur Cmaj7. A♭m7 – D♭7 est le II-V « tritonique » de Dm7 – G7.' },
+  { id: 'rhythm', enonce: 'Rhythm changes (si♭ majeur) : B♭ – G7 – Cm7 – F7 : G7 = ?', reponse: 'V7/ii (dominante de Cm7)',
+    pieges: ['V7/V', 'V7/vi', 'substitut tritonique de F7'],
+    explication: 'Le vi diatonique serait Gm7. En G7, le si naturel en fait la dominante de Cm7, le ii : I – V7/ii – ii – V. C\'est le I-vi-ii-V « jazz » de I Got Rhythm.' },
+  { id: 'satindoll-2', enonce: 'Satin Doll (do majeur), début : Dm7 – G7 – Em7 – A7 = ?', reponse: 'deux II-V qui montent d\'un ton (vers do, puis vers ré)',
+    pieges: ['II-V-I en la majeur', 'ii – V – iii – vi en do majeur', 'deux II-V-I complets'],
+    explication: 'Dm7 – G7 est le II-V de do, Em7 – A7 celui de ré : même formule, un ton plus haut, sans résoudre. A7 est aussi le V7/ii de do (sa tonique, Dm7, revient ensuite).' },
+];
+for (const g of GRILLES) ajouter({ ...g, id: `L3:${g.id}`, dimension: 'L', niveau: 3, notes: null });
+
+// L4 : voicings sans fondamentale (Mark Levine) : A = tierce en bas, B = septième en bas.
+// En II-V-I on alterne : ii (A) → V (B) → I (A), ou ii (B) → V (A) → I (B) ; les doigts bougent à peine.
+const FORMULES_VOICING = {
+  A: { m7: ['m3', 'P5', 'm7', 'M2'], 7: ['M3', 'M6', 'm7', 'M2'], maj7: ['M3', 'P5', 'M7', 'M2'] },
+  B: { m7: ['m7', 'M2', 'm3', 'P5'], 7: ['m7', 'M2', 'M3', 'M6'], maj7: ['M7', 'M2', 'M3', 'P5'] },
+};
+const CHIFFRES_VOICING = { m3: '3', M3: '3', P5: '5', m7: '7', M7: '7', M2: '9', M6: '13', P1: '1' };
+const voicing = (a, type) => FORMULES_VOICING[type][a.type].map((iv) => transposer(a.fond, iv));
+for (const t of COURANTES) {
+  const acc = [['ii', accordDegre(N(t), 2, { septieme: true })], ['V', accordDegre(N(t), 5, { septieme: true })], ['I', { fond: N(t), type: 'maj7' }]];
+  for (const type of ['A', 'B']) {
+    const autre = type === 'A' ? 'B' : 'A';
+    // Enchaînement où l'accord demandé a bien le voicing demandé : le V prend l'autre forme que ii et I.
+    const chaine = (formeV) => acc.map(([r, a]) => `${nomAccord(a.fond, a.type)} (${listeNotes(voicing(a, (r === 'V') === (formeV === type) ? type : autre))})`).join(' → ');
+    for (const [role, a] of acc) {
+      const nom = nomAccord(a.fond, a.type);
+      const notes = voicing(a, type);
+      const formule = FORMULES_VOICING[type][a.type];
+      // piège : on remplace la 13e par la 5te (sur le 7) ou la 9e par la fondamentale
+      const fausse = formule.map((iv) => (iv === 'M6' ? 'P5' : iv === 'M2' && a.type !== '7' ? 'P1' : iv));
+      ajouter({
+        id: `L4:${t}:${role}:${type}`, dimension: 'L', niveau: 4,
+        enonce: `II-V-I en ${tonMaj(t)}, voicing ${type} sans fondamentale : ${nom} ?`,
+        reponse: listeNotes(notes),
+        pieges: piegesDistincts([listeNotes(voicing(a, autre)), listeNotes(notesAccord(a.fond, a.type)), listeNotes(fausse.map((iv) => transposer(a.fond, iv)))], listeNotes(notes)),
+        explication: `Voicing ${type} (${type === 'A' ? 'tierce' : 'septième'} en bas) de ${nom} : ${formule.map((iv) => CHIFFRES_VOICING[iv]).join('-')} = ${listeNotes(notes)}. Enchaînement : ${chaine(role === 'V' ? type : autre)}.`,
+        notes,
+        saisie: touchesEnsemble(notes),
+      });
+    }
+  }
+}
+
 // ---------- Grilles de réponse ----------
-export const GRILLES = {
+export const GRILLES_REPONSE = {
   intervalles: ['m2', 'M2', 'm3', 'M3', 'P4', 'A4', 'd5', 'P5', 'm6', 'M6', 'm7', 'M7', 'P8'].map(nomIntervalle),
   intervallesOreille: INTERVALLES_F1.map(nomIntervalle),
   degres: [1, 2, 3, 4, 5, 6, 7].map(romain),
+  degresEntendus: [1, 2, 3, 4, 5, 6, 7].map(texteDegre),
   figures: TOKENS.filter((t) => !['t', 'T'].includes(t)).map(nomValeur),
   durees: TOKENS.map(tempsValeur),
   triades: ['maj', 'min', 'dim', 'aug'].map((t) => LIBELLES_F[t]),
@@ -981,7 +1241,7 @@ export const GRILLES = {
 // Pavé d'accord : les fondamentales gardent leur orthographe (fa♯ et sol♭ sont deux boutons).
 export const PAVE_ACCORD = {
   fondamentales: [['C', 'D', 'E', 'F', 'G', 'A', 'B'], ['C#', 'D#', 'F#', 'G#', 'A#'], ['Db', 'Eb', 'Gb', 'Ab', 'Bb']],
-  types: ['maj', 'min', 'dim', 'aug', 'maj7', '7', 'm7', 'm7b5', 'dim7'], // Object.keys mettrait « 7 » en tête
+  types: ['maj', 'min', 'dim', 'aug', 'maj7', '7', 'm7', 'm7b5', 'dim7', '6', 'm6', '7sus4'], // Object.keys mettrait « 7 » en tête
 };
 export function nomDuPave(fondamentale, type) { return nomAccord(N(fondamentale), type); }
 

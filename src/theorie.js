@@ -59,6 +59,9 @@ export const TYPES_ACCORD = {
   m7: { suffixe: 'm7', intervalles: ['P1', 'm3', 'P5', 'm7'], libelle: 'mineur 7' },
   m7b5: { suffixe: 'm7♭5', intervalles: ['P1', 'm3', 'd5', 'm7'], libelle: 'demi-diminué (ø)' },
   dim7: { suffixe: '°7', intervalles: ['P1', 'm3', 'd5', 'd7'], libelle: 'diminué 7' },
+  6: { suffixe: '6', intervalles: ['P1', 'M3', 'P5', 'M6'], libelle: 'majeur 6' },
+  m6: { suffixe: 'm6', intervalles: ['P1', 'm3', 'P5', 'M6'], libelle: 'mineur 6' },
+  '7sus4': { suffixe: '7sus4', intervalles: ['P1', 'P4', 'P5', 'm7'], libelle: '7 suspendu (sus4)' },
 };
 
 export function notesAccord(fond, type) {

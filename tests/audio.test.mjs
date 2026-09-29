@@ -41,6 +41,16 @@ test('sequenceAudio', () => {
   assert.equal(dureeTotaleMs(cad), 1800);
 });
 
+test('sequenceAudio : mode tonal (cadence, silence, puis notes ou accord)', () => {
+  const C = [note('C'), note('E'), note('G')]; const F = [note('F'), note('A'), note('C')]; const G = [note('G'), note('B'), note('D')];
+  const seq = sequenceAudio({ mode: 'tonal', cadence: [C, F, G, C], midis: [64, 62] });
+  assert.equal(seq.length, 7);
+  assert.deepEqual(seq[4].midis, [], 'silence après la cadence');
+  assert.deepEqual(seq.slice(5).map((e) => e.midis), [[64], [62]]);
+  const acc = sequenceAudio({ mode: 'tonal', cadence: [C, F, G, C], accord: [note('A'), note('C'), note('E')] });
+  assert.deepEqual(acc.at(-1).midis, [45, 57, 60, 64]);
+});
+
 test('sequenceAudio : modes midis et accordMidis', () => {
   assert.deepEqual(sequenceAudio({ mode: 'midis', midis: [48, 55], dureeMs: 500 }), [{ midis: [48], dureeMs: 500 }, { midis: [55], dureeMs: 500 }]);
   assert.deepEqual(sequenceAudio({ mode: 'accordMidis', midis: [48, 52, 55] }), [{ midis: [48, 52, 55], dureeMs: 1600 }]);
